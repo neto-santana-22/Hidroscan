@@ -1,0 +1,147 @@
+.monitoring-page {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.monitoring-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.monitoring-eyebrow {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+}
+
+.monitoring-heading h1 {
+    margin: 8px 0;
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.monitoring-heading p,
+.monitoring-section__header p {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.monitoring-demo {
+    padding: 7px 11px;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.monitoring-indicators {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.indicator-card {
+    min-width: 0;
+    padding: 20px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.indicator-title {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+.indicator-value {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 18px 0 12px;
+}
+
+.indicator-value strong {
+    font-family: var(--font-mono);
+    font-size: 27px;
+    font-weight: 600;
+}
+
+.indicator-value span {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.indicator-status {
+    font-size: 12px;
+}
+
+.indicator-status--normal {
+    color: var(--color-success);
+}
+
+.indicator-status--warning {
+    color: var(--color-warning);
+}
+
+.indicator-status--danger {
+    color: var(--color-danger);
+}
+
+.monitoring-section {
+    padding: 22px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.monitoring-section__header h2 {
+    margin-bottom: 6px;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.monitoring-chart {
+    width: 100%;
+    height: 340px;
+    margin-top: 20px;
+}
+
+@media (max-width: 1024px) {
+    .monitoring-indicators {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .monitoring-heading {
+        flex-direction: column;
+    }
+
+    .monitoring-heading h1 {
+        font-size: 24px;
+    }
+
+    .monitoring-indicators {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .indicator-card {
+        padding: 16px;
+    }
+
+    .monitoring-section {
+        padding: 16px;
+    }
+
+    .monitoring-chart {
+        height: 280px;
+    }
+}
