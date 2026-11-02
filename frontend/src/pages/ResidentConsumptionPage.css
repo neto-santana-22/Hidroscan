@@ -1,0 +1,218 @@
+.consumption-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.consumption-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.consumption-eyebrow {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+}
+
+.consumption-heading h1 {
+    margin: 8px 0;
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.consumption-heading p,
+.consumption-panel__header p {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.consumption-demo {
+    padding: 7px 11px;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.consumption-indicators {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.consumption-card,
+.consumption-panel {
+    min-width: 0;
+    padding: 20px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.consumption-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.consumption-card>span,
+.consumption-card small {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.consumption-card strong {
+    font-family: var(--font-mono);
+    font-size: 25px;
+    font-weight: 600;
+}
+
+.consumption-card .consumption-card__positive {
+    color: var(--color-success);
+}
+
+.consumption-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.consumption-panel__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.consumption-panel__header h2 {
+    margin-bottom: 6px;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.consumption-panel__header p {
+    margin-bottom: 0;
+}
+
+.consumption-filters {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+}
+
+.consumption-filters button {
+    padding: 8px 12px;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.consumption-filters button.active {
+    color: var(--color-text);
+    background: var(--color-background);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.consumption-chart {
+    width: 100%;
+    height: 300px;
+}
+
+.consumption-chart__note,
+.consumption-disclaimer {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 11px;
+}
+
+.consumption-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.consumption-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.consumption-table th,
+.consumption-table td {
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 12px;
+}
+
+.consumption-table th {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.consumption-table td {
+    color: var(--color-text);
+}
+
+.consumption-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.consumption-status {
+    display: inline-block;
+    padding: 5px 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+}
+
+.consumption-status--confirmada {
+    color: var(--color-success);
+}
+
+.consumption-status--estimada {
+    color: var(--color-warning);
+}
+
+@media (max-width: 1100px) {
+    .consumption-indicators {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+
+    .consumption-heading,
+    .consumption-panel__header {
+        flex-direction: column;
+    }
+
+    .consumption-heading h1 {
+        font-size: 24px;
+    }
+
+    .consumption-indicators {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .consumption-card,
+    .consumption-panel {
+        padding: 16px;
+    }
+
+    .consumption-chart {
+        height: 240px;
+    }
+}

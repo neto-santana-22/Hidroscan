@@ -1,15 +1,39 @@
 
-import './App.css'
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import './App.css'
 import MainLayout from './layouts/MainLayout'
+import { useAuth } from './contexts/AuthContext'
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const { isAuthenticated, login } = useAuth()
 
-  if (isLoggedIn) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setIsSubmitting(true)
+
+    try {
+      await login({ email, password })
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível realizar o login.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (isAuthenticated) {
     return <MainLayout />
   }
+
   return (
     <main className="login-page">
       <header className="login-header">
@@ -34,13 +58,7 @@ function App() {
             </p>
           </div>
 
-          <form
-            className="login-form"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setIsLoggedIn(true)
-            }}
-          >
+          <form className="login-form" onSubmit={handleLogin}>
             <div className="form-field">
               <label htmlFor="email">E-mail</label>
 
@@ -50,6 +68,8 @@ function App() {
                 type="email"
                 placeholder="seu@email.com"
                 autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
                 required
               />
             </div>
@@ -66,12 +86,24 @@ function App() {
                 type="password"
                 placeholder="Digite sua senha"
                 autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 required
               />
             </div>
 
-            <button className="login-submit" type="submit">
-              Entrar
+            {error && (
+              <p className="login-error" role="alert">
+                {error}
+              </p>
+            )}
+
+            <button
+              className="login-submit"
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
 

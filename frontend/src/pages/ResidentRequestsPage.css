@@ -1,0 +1,228 @@
+.resident-requests {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.resident-requests__heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.resident-requests__eyebrow {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+}
+
+.resident-requests__heading h1 {
+    margin: 8px 0;
+    font-size: 28px;
+}
+
+.resident-requests__heading p,
+.resident-requests__panel-heading p,
+.resident-requests__list-heading p {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+.resident-requests__demo {
+    height: fit-content;
+    padding: 7px 11px;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+}
+
+.resident-requests__panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+    padding: 20px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.resident-requests__panel-heading h2,
+.resident-requests__list-heading h2 {
+    margin-bottom: 6px;
+    font-size: 17px;
+}
+
+.resident-requests__panel-heading p,
+.resident-requests__list-heading p {
+    margin: 0;
+}
+
+.resident-request-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 720px;
+}
+
+.resident-request-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.resident-request-form__field label {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.resident-request-form__field input,
+.resident-request-form__field select,
+.resident-request-form__field textarea,
+.resident-requests__list-heading select {
+    width: 100%;
+    padding: 11px 12px;
+    color: var(--color-text);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font: inherit;
+    font-size: 13px;
+}
+
+.resident-request-form__field textarea {
+    resize: vertical;
+}
+
+.resident-request-form__field input:focus,
+.resident-request-form__field select:focus,
+.resident-request-form__field textarea:focus {
+    outline: 2px solid var(--color-info);
+    outline-offset: 1px;
+}
+
+.resident-requests__submit {
+    align-self: flex-start;
+    padding: 11px 18px;
+    color: white;
+    background: #087eBA;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.resident-requests__submit:hover {
+    background: #066a9d;
+}
+
+.resident-requests__feedback {
+    margin: 0;
+    color: var(--color-success);
+    font-size: 12px;
+}
+
+.resident-requests__list-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.resident-requests__list-heading select {
+    width: auto;
+    min-width: 145px;
+}
+
+.resident-requests__list {
+    display: flex;
+    flex-direction: column;
+}
+
+.resident-request-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.resident-request-item:last-child {
+    border-bottom: none;
+}
+
+.resident-request-item>div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.resident-request-item strong {
+    font-size: 13px;
+}
+
+.resident-request-item>div span {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+}
+
+.resident-request-item__status {
+    padding: 6px 9px;
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.resident-request-item__status--em-análise {
+    color: var(--color-info);
+}
+
+.resident-request-item__status--em-andamento {
+    color: var(--color-warning);
+}
+
+.resident-request-item__status--concluída {
+    color: var(--color-success);
+}
+
+.resident-requests__empty,
+.resident-requests__disclaimer {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+}
+
+.resident-requests__empty {
+    padding: 12px 0;
+}
+
+.resident-requests__disclaimer {
+    margin: 0;
+}
+
+@media (max-width: 650px) {
+
+    .resident-requests__heading,
+    .resident-requests__list-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .resident-requests__panel {
+        padding: 16px;
+    }
+
+    .resident-request-item {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .resident-requests__submit {
+        width: 100%;
+    }
+}

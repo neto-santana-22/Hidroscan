@@ -1,0 +1,199 @@
+.technician-alerts {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    color: var(--color-text);
+}
+
+.technician-alert-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.technician-alert-summary article {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.technician-alert-summary span {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+.technician-alert-summary strong {
+    font-size: 28px;
+}
+
+.technician-alert-toolbar {
+    display: flex;
+    gap: 12px;
+}
+
+.technician-alert-toolbar input,
+.technician-alert-toolbar select {
+    min-height: 42px;
+    padding: 0 12px;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.technician-alert-toolbar input {
+    flex: 1;
+    min-width: 0;
+}
+
+.technician-alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.technician-alert-card {
+    padding: 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.technician-alert-card--crítica {
+    border-left-color: #b33b3b;
+}
+
+.technician-alert-card--alta {
+    border-left-color: #c17b21;
+}
+
+.technician-alert-card--média {
+    border-left-color: #4776ad;
+}
+
+.technician-alert-card--baixa {
+    border-left-color: #31836c;
+}
+
+.technician-alert-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.technician-alert-card__header h2 {
+    margin: 8px 0 0;
+    font-size: 17px;
+}
+
+.technician-alert-severity {
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.technician-alert-severity--crítica {
+    color: #b33b3b;
+    background: #fbe8e8;
+}
+
+.technician-alert-severity--alta {
+    color: #98600e;
+    background: #fff1dc;
+}
+
+.technician-alert-severity--média {
+    color: #3268a8;
+    background: #e7f0fc;
+}
+
+.technician-alert-severity--baixa {
+    color: #287447;
+    background: #e8f2ec;
+}
+
+.technician-alert-description {
+    margin: 16px 0;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.technician-alert-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.technician-alert-details strong {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.technician-alert-card__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    margin-top: 18px;
+    padding-top: 15px;
+    border-top: 1px solid var(--color-border);
+}
+
+.technician-alert-acknowledged,
+.technician-alert-pending {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.technician-alert-acknowledged {
+    color: #287447;
+}
+
+.technician-alert-pending {
+    color: #98600e;
+}
+
+.technician-alert-card__footer button {
+    padding: 9px 13px;
+    color: white;
+    background: var(--color-primary, #176b87);
+    border: 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.technician-alert-disclaimer {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+@media (max-width: 700px) {
+    .technician-alert-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .technician-alert-toolbar,
+    .technician-alert-card__header,
+    .technician-alert-card__footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .technician-alert-toolbar input,
+    .technician-alert-toolbar select {
+        width: 100%;
+    }
+}

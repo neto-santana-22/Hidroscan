@@ -1,0 +1,146 @@
+.technician-history {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    color: var(--color-text);
+}
+
+.technician-history-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.technician-history-summary article {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.technician-history-summary span,
+.technician-history-details span,
+.technician-history-result>span {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.technician-history-summary strong {
+    font-size: 28px;
+}
+
+.technician-history-toolbar {
+    display: flex;
+    gap: 12px;
+}
+
+.technician-history-toolbar input,
+.technician-history-toolbar select {
+    min-height: 42px;
+    padding: 0 12px;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.technician-history-toolbar input {
+    flex: 1;
+    min-width: 0;
+}
+
+.technician-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.technician-history-card {
+    padding: 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.technician-history-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 22px;
+}
+
+.technician-history-card h2 {
+    margin: 8px 0 0;
+    font-size: 17px;
+}
+
+.technician-history-type {
+    padding: 6px 10px;
+    color: #3268a8;
+    background: #e7f0fc;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.technician-history-details {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.technician-history-details div {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+}
+
+.technician-history-details strong {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.technician-history-result {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+.technician-history-result p {
+    margin: 7px 0 0;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+@media (max-width: 850px) {
+    .technician-history-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .technician-history-details {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+
+    .technician-history-toolbar,
+    .technician-history-card__header {
+        flex-direction: column;
+    }
+
+    .technician-history-toolbar input,
+    .technician-history-toolbar select {
+        width: 100%;
+    }
+
+    .technician-history-details {
+        grid-template-columns: 1fr;
+    }
+}

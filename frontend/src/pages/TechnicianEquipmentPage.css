@@ -1,0 +1,167 @@
+.technician-equipment {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    color: var(--color-text);
+}
+
+.technician-equipment-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.technician-equipment-summary article {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.technician-equipment-summary span {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+.technician-equipment-summary strong {
+    font-size: 28px;
+}
+
+.technician-equipment-toolbar {
+    display: flex;
+    gap: 12px;
+}
+
+.technician-equipment-toolbar input,
+.technician-equipment-toolbar select {
+    min-height: 42px;
+    padding: 0 12px;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.technician-equipment-toolbar input {
+    flex: 1;
+    min-width: 0;
+}
+
+.technician-equipment-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.technician-equipment-card {
+    padding: 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.technician-equipment-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 22px;
+}
+
+.technician-equipment-card__header h2 {
+    margin: 8px 0 4px;
+    font-size: 17px;
+}
+
+.technician-equipment-card__header p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+.technician-equipment-status {
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.technician-equipment-status--operacional {
+    color: #287447;
+    background: #e8f2ec;
+}
+
+.technician-equipment-status--atenção {
+    color: #98600e;
+    background: #fff1dc;
+}
+
+.technician-equipment-status--offline {
+    color: #b33b3b;
+    background: #fbe8e8;
+}
+
+.technician-equipment-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 12px;
+}
+
+.technician-equipment-details div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.technician-equipment-details span {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+}
+
+.technician-equipment-details strong {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.technician-battery {
+    height: 6px;
+    margin-top: 20px;
+    overflow: hidden;
+    background: var(--color-border);
+    border-radius: 10px;
+}
+
+.technician-battery__fill {
+    height: 100%;
+    background: #31836c;
+    border-radius: inherit;
+}
+
+@media (max-width: 900px) {
+    .technician-equipment-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .technician-equipment-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .technician-equipment-toolbar {
+        flex-direction: column;
+    }
+
+    .technician-equipment-toolbar select {
+        min-height: 42px;
+    }
+
+    .technician-equipment-card__header {
+        flex-direction: column;
+    }
+}

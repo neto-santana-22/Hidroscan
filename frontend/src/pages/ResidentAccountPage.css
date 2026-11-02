@@ -1,0 +1,202 @@
+.resident-account {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.resident-account__heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.resident-account__eyebrow {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+}
+
+.resident-account__heading h1 {
+    margin: 8px 0;
+    font-size: 28px;
+}
+
+.resident-account__heading p,
+.resident-account__panel-heading p {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+.resident-account__demo {
+    height: fit-content;
+    padding: 7px 11px;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+}
+
+.resident-account__profile,
+.resident-account__panel {
+    padding: 20px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.resident-account__profile {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.resident-account__avatar {
+    display: grid;
+    width: 54px;
+    height: 54px;
+    flex-shrink: 0;
+    place-items: center;
+    color: white;
+    background: #087eba;
+    border-radius: 50%;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.resident-account__profile h2 {
+    margin: 0 0 5px;
+    font-size: 17px;
+}
+
+.resident-account__profile p {
+    margin: 0 0 5px;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.resident-account__profile span {
+    color: var(--color-info);
+    font-size: 11px;
+}
+
+.resident-account__panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.resident-account__panel-heading h2 {
+    margin-bottom: 6px;
+    font-size: 17px;
+}
+
+.resident-account__panel-heading p {
+    margin: 0;
+}
+
+.resident-account__form {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.resident-account__fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+}
+
+.resident-account__field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.resident-account__field label {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.resident-account__field input {
+    width: 100%;
+    padding: 11px 12px;
+    color: var(--color-text);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font: inherit;
+    font-size: 13px;
+}
+
+.resident-account__field input:focus {
+    outline: 2px solid var(--color-info);
+    outline-offset: 1px;
+}
+
+.resident-account__form button {
+    padding: 11px 18px;
+    color: white;
+    background: #087eba;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.resident-account__feedback {
+    margin: 0;
+    color: var(--color-success);
+    font-size: 12px;
+}
+
+.resident-account__unit {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.resident-account__unit div {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.resident-account__unit span {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+}
+
+.resident-account__unit strong {
+    font-size: 13px;
+}
+
+.resident-account__disclaimer {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 11px;
+}
+
+@media (max-width: 650px) {
+    .resident-account__heading {
+        flex-direction: column;
+    }
+
+    .resident-account__fields,
+    .resident-account__unit {
+        grid-template-columns: 1fr;
+    }
+
+    .resident-account__profile,
+    .resident-account__panel {
+        padding: 16px;
+    }
+
+    .resident-account__form button {
+        width: 100%;
+    }
+}
