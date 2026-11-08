@@ -31,6 +31,8 @@ INSTALLED_APPS = [
     "occurrences",
     "workorders",
     "resident_requests",
+    "control",
+    "reports",
 ]
 
 MIDDLEWARE = [

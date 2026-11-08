@@ -13,5 +13,7 @@ urlpatterns = [
     path('api/', include('occurrences.urls')),
     path('api/', include('workorders.urls')),
     path('api/', include('resident_requests.urls')),
+    path('api/', include('control.urls')),
+    path('api/', include('reports.urls')),
     path('', include('hidroscan.urls')),
 ]
