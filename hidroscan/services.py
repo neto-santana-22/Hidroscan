@@ -13,9 +13,9 @@ def register_audit(*, actor, action, resource, details=None):
     )
 
 
-def create_device(*, property, name, serial_number, device_key, actor):
+def create_device(*, property, name, serial_number, device_key, actor, active=True):
     with transaction.atomic():
-        device = Device(property=property, name=name, serial_number=serial_number)
+        device = Device(property=property, name=name, serial_number=serial_number, active=active)
         device.set_device_key(device_key)
         device.save()
         register_audit(actor=actor, action="device.created", resource=device)

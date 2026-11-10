@@ -45,13 +45,12 @@ def send_verification_code(user):
 
 
 def verify_email(*, user, code):
-    try:
-        verification = user.email_verification
-    except EmailVerification.DoesNotExist as error:
-        raise AccountValidationError("Nenhum código de verificação foi solicitado.") from error
-
+    invalid_code = False
     with transaction.atomic():
-        verification.refresh_from_db()
+        try:
+            verification = EmailVerification.objects.select_for_update().get(user=user)
+        except EmailVerification.DoesNotExist as error:
+            raise AccountValidationError("Nenhum código de verificação foi solicitado.") from error
         if verification.used_at:
             raise AccountValidationError("Este código já foi utilizado.")
         if verification.attempts >= 5:
@@ -62,12 +61,14 @@ def verify_email(*, user, code):
         verification.attempts += 1
         if not check_password(code, verification.code_hash):
             verification.save(update_fields=["attempts"])
-            raise AccountValidationError("Código de verificação inválido.")
-
-        verification.used_at = timezone.now()
-        verification.save(update_fields=["attempts", "used_at"])
-        user.email_verificado = True
-        user.save(update_fields=["email_verificado"])
+            invalid_code = True
+        else:
+            verification.used_at = timezone.now()
+            verification.save(update_fields=["attempts", "used_at"])
+            user.email_verificado = True
+            user.save(update_fields=["email_verificado"])
+    if invalid_code:
+        raise AccountValidationError("Código de verificação inválido.")
 
 
 def authenticate_user(*, request, email, password):

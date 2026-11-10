@@ -33,7 +33,12 @@ class DeviceSerializer(serializers.ModelSerializer):
             "last_reading_at",
             "active",
         ]
-        read_only_fields = ["id", "last_reading_at"]
+        read_only_fields = ["id", "last_reading_at", "valve_state"]
+
+    def validate(self, attrs):
+        if "valve_state" in self.initial_data:
+            raise serializers.ValidationError({"valve_state": "O estado da válvula só pode mudar pelo comando de válvula."})
+        return attrs
 
     def create(self, validated_data):
         device_key = validated_data.pop("device_key", None)

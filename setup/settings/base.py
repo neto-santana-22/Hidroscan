@@ -112,6 +112,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API REST da plataforma de monitoramento de água.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAuthenticated"],
     "ENUM_NAME_OVERRIDES": {
         "OperationalSeverityEnum": "alerts.models.Alert.Severity",
     },

@@ -17,6 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    role = serializers.ChoiceField(choices=User.Role.choices, required=True)
 
     class Meta:
         model = User
@@ -30,4 +31,5 @@ class LoginSerializer(serializers.Serializer):
 
 
 class EmailVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
     code = serializers.RegexField(r"^\d{6}$")

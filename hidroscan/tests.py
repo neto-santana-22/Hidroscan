@@ -69,3 +69,33 @@ class ScopeAndDeviceApiTests(TestCase):
         device = Device.objects.get(pk=response.data["id"])
         self.assertTrue(device.check_device_key("chave-de-dispositivo-1234"))
         self.assertTrue(self.admin.audit_logs.filter(action="device.created").exists())
+
+    def test_admin_can_create_an_inactive_device_but_cannot_set_valve_state(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(
+            "/api/dispositivos/",
+            {
+                "property": self.visible_property.id,
+                "name": "Hidrômetro inativo",
+                "serial_number": "HIDRO-A-002",
+                "device_key": "chave-de-dispositivo-1234",
+                "active": False,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertFalse(Device.objects.get(pk=response.data["id"]).active)
+
+        response = self.client.post(
+            "/api/dispositivos/",
+            {
+                "property": self.visible_property.id,
+                "name": "Hidrômetro indevido",
+                "serial_number": "HIDRO-A-003",
+                "device_key": "chave-de-dispositivo-1234",
+                "valve_state": "open",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("valve_state", response.data)

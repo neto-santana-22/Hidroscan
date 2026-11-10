@@ -10,6 +10,7 @@ from .models import User
 from .permissions import IsAdministratorRole
 from .serializers import EmailVerificationSerializer, LoginSerializer, UserCreateSerializer, UserSerializer
 from .services import AccountValidationError, authenticate_user, create_user, verify_email
+from hidroscan.services import register_audit
 
 
 def csrf_required(view):
@@ -57,16 +58,23 @@ def me(request):
 
 
 @extend_schema(request=EmailVerificationSerializer, responses=UserSerializer)
+@csrf_required
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def email_verification(request):
     serializer = EmailVerificationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     try:
-        verify_email(user=request.user, code=serializer.validated_data["code"])
-    except AccountValidationError as error:
-        return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
-    return Response(UserSerializer(request.user).data)
+        user = User.objects.get(email__iexact=serializer.validated_data["email"])
+        if user.role != User.Role.TECNICO:
+            raise AccountValidationError("Código de verificação inválido ou expirado.")
+        verify_email(user=user, code=serializer.validated_data["code"])
+    except User.DoesNotExist:
+        return Response({"detail": "Código de verificação inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
+    except AccountValidationError:
+        return Response({"detail": "Código de verificação inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
+    register_audit(actor=user, action="user.email_verified", resource=user)
+    return Response(UserSerializer(user).data)
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -77,4 +85,10 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserCreateSerializer if self.action == "create" else UserSerializer
 
     def perform_create(self, serializer):
-        serializer.instance = create_user(**serializer.validated_data)
+        user = create_user(**serializer.validated_data)
+        register_audit(actor=self.request.user, action="user.created", resource=user)
+        serializer.instance = user
+
+    def perform_update(self, serializer):
+        user = serializer.save()
+        register_audit(actor=self.request.user, action="user.updated", resource=user)
