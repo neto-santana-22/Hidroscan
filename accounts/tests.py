@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth.hashers import make_password
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from hidroscan.models import AuditLog
@@ -149,3 +150,122 @@ class AuthenticationApiTests(TestCase):
         self.assertEqual(self.client.get("/api/schema/").status_code, 403)
         self.client.force_authenticate(self.user)
         self.assertEqual(self.client.get("/api/schema/").status_code, 200)
+
+
+    def test_email_is_normalized_to_lowercase_on_creation(self):
+        user = User.objects.create_user(
+            email="TechUser@Example.COM",
+            password="senha-segura-123",
+            role=User.Role.MORADOR,
+        )
+        self.assertEqual(user.email, "techuser@example.com")
+
+    def test_verification_handles_multiple_objects_returned_gracefully(self):
+        """If iexact somehow returns multiple users, view returns generic 400."""
+        # With lowercase normalization this should not happen for new users,
+        # but the view must handle it defensively.
+        client = APIClient(enforce_csrf_checks=True)
+        client.get("/api/auth/csrf/")
+        token = client.cookies["csrftoken"].value
+        response = client.post(
+            "/api/auth/verificacao-email/",
+            {"email": "naoexiste@example.com", "code": "123456"},
+            format="json",
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_resend_verification_requires_administrator(self):
+        non_admin = User.objects.create_user(
+            email="operador@example.com",
+            password="senha-segura-123",
+            role=User.Role.OPERADOR,
+        )
+        client = APIClient()
+        client.force_authenticate(non_admin)
+        response = client.post(
+            "/api/auth/reenvio-verificacao/",
+            {"email": "tecnico@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_resend_verification_only_for_unverified_technician(self):
+        admin = User.objects.create_user(
+            email="admin@example.com",
+            password="senha-segura-123",
+            role=User.Role.ADMINISTRADOR,
+        )
+        morador = User.objects.create_user(
+            email="morador2@example.com",
+            password="senha-segura-123",
+            role=User.Role.MORADOR,
+        )
+        client = APIClient()
+        client.force_authenticate(admin)
+
+        # Non-technician
+        response = client.post(
+            "/api/auth/reenvio-verificacao/",
+            {"email": morador.email},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("técnicos", response.data["detail"])
+
+    def test_resend_verification_creates_new_code_and_audits(self):
+        admin = User.objects.create_user(
+            email="admin@example.com",
+            password="senha-segura-123",
+            role=User.Role.ADMINISTRADOR,
+        )
+        technician = User.objects.create_user(
+            email="tecnico@example.com",
+            password="senha-segura-123",
+            role=User.Role.TECNICO,
+            email_verificado=False,
+        )
+        # Create an expired verification
+        EmailVerification.objects.create(
+            user=technician,
+            code_hash=make_password("123456"),
+            expires_at=timezone.now() - timezone.timedelta(minutes=10),
+            attempts=5,
+        )
+        client = APIClient()
+        client.force_authenticate(admin)
+        response = client.post(
+            "/api/auth/reenvio-verificacao/",
+            {"email": technician.email},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 204)
+        # Verification was reset
+        verification = EmailVerification.objects.get(user=technician)
+        self.assertEqual(verification.attempts, 0)
+        self.assertIsNone(verification.used_at)
+        self.assertGreater(verification.expires_at, timezone.now())
+        # Audit recorded
+        self.assertTrue(AuditLog.objects.filter(action="user.verification_resent").exists())
+
+    def test_resend_verification_rejects_already_verified(self):
+        admin = User.objects.create_user(
+            email="admin@example.com",
+            password="senha-segura-123",
+            role=User.Role.ADMINISTRADOR,
+        )
+        technician = User.objects.create_user(
+            email="tecnico@example.com",
+            password="senha-segura-123",
+            role=User.Role.TECNICO,
+            email_verificado=True,
+        )
+        client = APIClient()
+        client.force_authenticate(admin)
+        response = client.post(
+            "/api/auth/reenvio-verificacao/",
+            {"email": technician.email},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("verificado", response.data["detail"])

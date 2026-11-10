@@ -34,15 +34,21 @@ Sensor/simulador
 - WhiteNoise configurado para arquivos estáticos de produção.
 - DRF atualizado para `3.18.3`, compatível com Django `6.1.2`.
 
-### Observação pendente: `.env`
+### Configuração de ambiente
 
-O `.env` local possui sintaxe inválida para `SECRET_KEY` se usar espaços ao redor de `=`. O formato aceito é:
+A sintaxe pendente de `SECRET_KEY` no `.env` foi corrigida manualmente na etapa 1. O backend agora pode ler a variável com `django-environ` no formato `CHAVE=valor`.
 
-```env
-SECRET_KEY=valor-secreto
-```
+O `.env.example` continua sendo o modelo versionado de variáveis suportadas. No ambiente local, apenas `SECRET_KEY` é obrigatória no código atual; `DEBUG`, `ALLOWED_HOSTS`, `TIME_ZONE`, `EMAIL_BACKEND`, `DEFAULT_FROM_EMAIL` e `ALERT_CONSUMPTION_THRESHOLD` possuem valores padrão, mas devem ser declarados explicitamente no `.env` de cada ambiente para tornar o comportamento previsível.
 
-O valor da chave não foi alterado durante as etapas. Sem a correção, o processo Django não inicia sem que `SECRET_KEY` seja fornecida pelo ambiente.
+### Resultado técnico da etapa
+
+- `manage.py`, WSGI e ASGI selecionam settings de desenvolvimento de forma explícita.
+- `base.py` concentra configurações comuns, `dev.py` mantém `DEBUG=True` e `prod.py` inicia com `DEBUG=False`.
+- A conexão é sempre `django.db.backends.sqlite3`, com arquivo em `BASE_DIR / db.sqlite3`.
+- O middleware contém sessão, CSRF, autenticação Django e WhiteNoise na ordem necessária para autenticação web e arquivos estáticos.
+- O DRF usa `SessionAuthentication`, paginação por página e `IsAuthenticated` como permissão padrão.
+- `/api/schema/` e `/api/docs/` usam `SERVE_PERMISSIONS = IsAuthenticated`; isso substitui o padrão `AllowAny` do drf-spectacular e evita expor a descrição dos endpoints anonimamente.
+- `USE_TZ=True` e UTC são adotados no backend; a conversão para horário de Recife será responsabilidade do frontend.
 
 ## Etapa 2 — usuários, escopo e cadastros
 
@@ -94,6 +100,46 @@ Recursos fora do escopo retornam `404`, não confirmação de existência.
 
 `AuditLog` é imutável. Login, logout e mudanças críticas registram ator, ação, recurso, detalhes e data.
 
+### Fluxos internos implementados
+
+#### Cadastro administrativo de usuário
+
+1. Um administrador envia e-mail, senha, nome opcional, perfil e `todas_regioes` para `/api/usuarios/`.
+2. `UserCreateSerializer` exige senha com ao menos oito caracteres e `role` explícito.
+3. O serviço usa os hashers do Django; senha nunca é retornada nem armazenada em texto puro.
+4. Para morador, operador e administrador, `email_verificado` é marcado como verdadeiro no serviço. Para técnico, é criado código de verificação com hash, expiração de cinco minutos e contador zerado.
+5. A criação é auditada com o administrador autenticado como `actor` e o novo usuário como recurso afetado.
+
+#### Verificação de técnico
+
+1. O técnico recebe um código numérico por e-mail — console em desenvolvimento, SMTP quando configurado para produção.
+2. Sem sessão, o cliente obtém CSRF em `/api/auth/csrf/` e envia `email + code` para `/api/auth/verificacao-email/`.
+3. O serviço bloqueia a linha de verificação durante a conferência, impede código usado, vencido ou com cinco tentativas anteriores.
+4. Cada código incorreto incrementa e persiste `attempts`; após a quinta falha, inclusive um código correto é recusado até o reenvio de novo código.
+5. Código válido marca a verificação como usada, atualiza `email_verificado=True` e gera evento auditado `user.email_verified`.
+6. As respostas inválidas são genéricas, para não revelar se um e-mail possui código pendente.
+
+#### Dispositivos e chaves
+
+1. Administrador cria dispositivo com imóvel, nome, número de série, `device_key` e, opcionalmente, `active`.
+2. A chave recebida é transformada em hash por `Device.set_device_key()`; a API nunca devolve a chave original.
+3. `valve_state` não pode ser definido por cadastro/edição genérica. Ele só muda pelo serviço de comando da válvula, que exige motivo e auditoria.
+4. A criação do dispositivo e sua auditoria ocorrem na mesma transação.
+
+### Ajustes e resolução das pendências da etapa 2
+
+- **Reenvio de código de verificação**: implementado endpoint `POST /api/auth/reenvio-verificacao/` acessível por administrador autenticado, permitindo emitir novo código para técnicos não verificados, com cooldown de 60 segundos entre reenvios e auditoria da ação (`user.verification_resent`).
+- **Throttling no endpoint de verificação**: adicionado `VerificationRateThrottle` limitando em 10 requisições por minuto por IP no endpoint público de conferência de código.
+- **Normalização e tratamento de e-mail**: padronizado o salvamento de e-mails em caixa baixa no `UserManager` e adicionado tratamento defensivo para `MultipleObjectsReturned` na verificação de código.
+- **Link "Esqueceu a senha?"**: removido do formulário de login no frontend React para não induzir fluxo inexistente antes de sua especificação.
+- **Registro no Django Admin com auditoria**: criados registros de models em `accounts/admin.py` (`User` com auditoria de criação/edição/deleção, `EmailVerification` somente leitura) e `hidroscan/admin.py` (`Region`, `Property`, `Device`, `RegionAccess` com auditoria; `AuditLog` somente leitura e imutável).
+
+### Pendências e decisões ainda abertas da etapa 2
+
+- Não existe recuperação/troca de senha; o fluxo completo de redefinição de senha permanece a ser especificado e aprovado.
+- Alterações em registros efetuadas diretamente por shell continuam sem auditoria de aplicação (limitação do nível de banco/ORM sem signals globais).
+- Dependência entre apps: `accounts.views` consome `hidroscan.services.register_audit`, enquanto `hidroscan` referencia o model de usuário; caso seja desejável desacoplamento estrito, o serviço de auditoria poderá ser extraído para um módulo base em etapa futura.
+
 ## Etapa 3 — monitoramento
 
 ### Modelo e serviço
@@ -125,6 +171,21 @@ O comando `simulate_readings` cria leituras crescentes pelo mesmo serviço da AP
 .\venv\Scripts\python.exe manage.py simulate_readings HIDRO-001 --count 24 --start-volume 100.000 --increment 0.100 --interval-minutes 60
 ```
 
+### Respostas e regras de ingestão
+
+- `201 Created`: leitura nova persistida.
+- `200 OK`: mesmo `external_id` recebido novamente para o mesmo dispositivo; não cria duplicata.
+- `400 Bad Request`: payload inválido, data futura, leitura fora de ordem, volume negativo ou regressivo.
+- `401 Unauthorized`: chave ausente ou inválida.
+
+O cálculo de consumo parte de zero para a primeira leitura do dispositivo. Cada leitura posterior guarda a diferença já calculada, permitindo consultas e relatórios sem recalcular toda a série em cada requisição.
+
+### Pendências e decisões ainda abertas da etapa 3
+
+- O simulador gera somente leituras históricas crescentes; não há cenários prontos para falha de comunicação, bateria ou pressão, porque esses atributos não fazem parte do model atual de `Device`.
+- O dashboard atual retorna resumo agregado de imóveis, dispositivos, consumo diário e última leitura. Definições adicionais de KPIs e granularidade de gráficos deverão ser confirmadas durante a integração visual.
+- Não existe retenção/arquivamento de leituras nem política de volume de dados. Isso deve ser reavaliado antes de cargas prolongadas de sensores reais.
+
 ## Etapa 4 — operação
 
 ### Alertas
@@ -143,6 +204,24 @@ O comando `simulate_readings` cria leituras crescentes pelo mesmo serviço da AP
 | Solicitações | `GET/POST /api/solicitacoes/`; status em `POST /api/solicitacoes/{id}/status/`; morador cria somente para imóvel próprio; conclusão exige resolução. |
 
 Técnicos, operadores e administradores atuam somente no escopo regional. Técnicos visualizam apenas ordens atribuídas a eles dentro desse escopo.
+
+### Detalhes dos estados operacionais
+
+| Entidade | Estados implementados | Transições aceitas |
+| --- | --- | --- |
+| Alerta | `open`, `acknowledged`, `resolved` | Reconhecimento transforma aberto em reconhecido; alerta resolvido não pode ser reconhecido. |
+| Ocorrência | `open`, `in_progress`, `resolved` | Aberta → em andamento/resolvida; em andamento → resolvida. |
+| Ordem | `pending`, `in_progress`, `completed`, `canceled` | Pendente → em andamento/cancelada; em andamento → concluída/cancelada. |
+| Solicitação | `open`, `under_review`, `completed`, `canceled` | Aberta → em análise/cancelada; em análise → concluída/cancelada. |
+
+Toda transição validada cria auditoria. A atualização de ocorrência também registra uma linha em `OccurrenceUpdate`, preservando o histórico textual e o status aplicado.
+
+### Pendências e decisões ainda abertas da etapa 4
+
+- A regra de alerta atual cobre somente pico de consumo. Limiar, severidade e regras adicionais — vazamento contínuo, ausência de comunicação ou pressão — dependem de requisitos e dados de sensor que ainda não existem no schema.
+- Não há ação formal de resolver alerta nem ligação automática de alerta para ocorrência. A criação de ocorrência a partir de alerta permanece uma ação explícita para evitar automações indevidas.
+- Não há comentários/anexos em ordens de serviço, agenda de técnico ou notificação ao morador. Esses itens não devem ser inferidos a partir das telas demonstrativas.
+- O frontend contém telas com dados técnicos simulados de equipamentos e intervenções; os campos correspondentes ainda não possuem modelos dedicados.
 
 ## Etapa 5 — válvulas e relatórios
 
@@ -171,6 +250,19 @@ Tipos suportados: `consumo`, `leituras`, `alertas` e `ocorrencias`. Filtros opci
 - PDF é produzido com ReportLab e entregue como anexo.
 - O escopo é aplicado antes de montar querysets e cada exportação registra `report.exported` na auditoria.
 
+### Detalhes de controle de válvula
+
+- `GET` retorna o estado conhecido persistido: `open`, `closed` ou `unknown`.
+- `POST` bloqueia o dispositivo na transação, cria `ValveCommand`, muda o estado persistido e registra `valve.commanded`.
+- A implementação representa o estado aceito pelo software. Ainda não existe protocolo de confirmação com hardware físico; portanto, “aplicado” significa que o comando foi gravado e o estado lógico foi atualizado, não que uma válvula remota confirmou a execução.
+
+### Pendências e decisões ainda abertas da etapa 5
+
+- Integração com controlador/hardware de válvula não está implementada. Será necessário definir protocolo, timeout, confirmação, reenvio, estados de falha e reconciliação do estado físico.
+- PDFs utilizam layout textual simples. Identidade visual, cabeçalho institucional, paginação avançada e tabelas extensas podem exigir um template aprovado.
+- Relatórios atuais não incluem ordens de serviço ou solicitações. A inclusão depende de confirmar necessidade, filtros e campos permitidos por perfil.
+- Não há fila assíncrona para relatórios grandes. Para o MVP, exportações são síncronas; volumes elevados devem motivar processamento assíncrono.
+
 ## Migrations e validações
 
 Migrations iniciais foram criadas para `accounts`, `hidroscan`, `monitoring`, `alerts`, `occurrences`, `workorders`, `resident_requests` e `control`.
@@ -181,9 +273,9 @@ Elas não foram aplicadas ao `db.sqlite3` local. Os testes aplicaram migrations 
 .\venv\Scripts\python.exe manage.py migrate
 ```
 
-Validações executadas ao fim da etapa 5:
+Validações executadas após as correções posteriores à etapa 5:
 
-- 20 testes de API e serviço aprovados;
+- 25 testes de API e serviço aprovados;
 - `manage.py check` sem problemas;
 - validação OpenAPI sem erros ou avisos;
 - `makemigrations --check --dry-run` sem mudanças pendentes;
@@ -277,23 +369,84 @@ Cada tela integrada deve ter carregamento inicial, lista vazia, erro recuperáve
 
 ### Pré-requisitos para visualização local
 
-Após autorização para criar as tabelas e dados mínimos:
+Para uma demonstração prática após a etapa 6, será necessário aplicar as migrations e criar dados persistentes. Essas operações ainda exigem autorização específica porque alteram o `db.sqlite3` local.
+
+#### Preparação inicial, executada uma única vez
 
 ```powershell
-# Banco e primeiro administrador
+# No diretório raiz do projeto: C:\Users\USUARIO\Documents\GlauberProgramacao\Hidroscan
+
+# 1. Cria/atualiza as tabelas SQLite pelas migrations versionadas.
 .\venv\Scripts\python.exe manage.py migrate
+
+# 2. Cria o primeiro administrador. O comando solicitará e-mail e senha.
 .\venv\Scripts\python.exe manage.py createsuperuser
 
-# Terminal 1: backend
-.\venv\Scripts\python.exe manage.py runserver
-
-# Terminal 2: frontend
-cd frontend
+# 3. Instala dependências do frontend se node_modules ainda não existir.
+Set-Location frontend
 npm install
+Set-Location ..
+```
+
+O superusuário criado pelo manager customizado recebe o perfil `administrador`. Ele permite autenticar na aplicação; porém, sem região, imóvel e dispositivo, o dashboard mostrará estado vazio/zero, o que é esperado.
+
+#### Execução para visualizar backend e frontend
+
+Abra **dois terminais** no diretório raiz do projeto.
+
+**Terminal 1 — Django/API**
+
+```powershell
+.\venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
+```
+
+Resultados esperados:
+
+- API em `http://127.0.0.1:8000/api/`;
+- documentação autenticada em `http://127.0.0.1:8000/api/docs/`;
+- admin Django em `http://127.0.0.1:8000/admin/`, quando seus models estiverem registrados;
+- terminal exibindo requisições e erros do backend.
+
+**Terminal 2 — Vite/React**
+
+```powershell
+Set-Location frontend
 npm run dev
 ```
 
-O backend será normalmente `http://127.0.0.1:8000`; o Vite informará a URL do frontend, geralmente `http://localhost:5173`.
+O Vite deverá exibir uma URL semelhante a:
+
+```text
+Local: http://localhost:5173/
+```
+
+Abra **`http://localhost:5173/` no navegador**. A interface React será carregada nessa URL. Após a integração da etapa 6, o login usará a API do Terminal 1 por meio do proxy `/api`; assim, os gráficos, listas e dashboard virão do Django, e não dos arquivos de dados simulados.
+
+#### Dados para enxergar conteúdo real
+
+Para visualizar mais do que a tela de login ou estados vazios, serão necessários dados mínimos: região, morador, imóvel, dispositivo, acesso regional e leituras. No estado atual, o projeto não possui `seed_demo` aprovado e os models de domínio ainda não foram registrados no Django Admin. Portanto, há uma pendência operacional: definir e autorizar uma das alternativas abaixo antes da demonstração completa.
+
+1. criar um comando idempotente `seed_demo`, com dados e credenciais de demonstração aprovados;
+2. registrar models no Django Admin e cadastrar dados manualmente;
+3. criar os dados por chamadas autenticadas da API/documentação.
+
+Depois de existir um dispositivo ativo, o comando abaixo pode preencher histórico de consumo:
+
+```powershell
+.\venv\Scripts\python.exe manage.py simulate_readings HIDRO-001 --count 24 --start-volume 100.000 --increment 0.100 --interval-minutes 60
+```
+
+`HIDRO-001` deve ser substituído pelo número de série real. Sem dados iniciais, o comando falhará corretamente informando que o dispositivo não foi encontrado.
+
+### Sequência visual prevista na etapa 6
+
+1. Abrir `http://localhost:5173/` no navegador.
+2. O `AuthContext` chama `/api/auth/me/`; sem sessão, a tela de login é exibida sem erro técnico.
+3. Ao enviar e-mail/senha, o cliente busca CSRF, envia login e recebe cookie de sessão do Django.
+4. Após autenticar, cabeçalho e menu passam a refletir o perfil retornado (`morador`, `operador`, `tecnico` ou `administrador`).
+5. A tela inicial chama o dashboard e demais endpoints do perfil. Enquanto a API responde, a interface exibe carregamento; sem registros, exibe estado vazio; com falha, exibe mensagem recuperável.
+6. Para acompanhar o backend, manter o Terminal 1 aberto: cada requisição do frontend aparecerá nos logs do `runserver`.
+7. Para conferir contrato e respostas manualmente, autenticar-se no frontend e abrir `/api/docs/` na mesma origem do Django, ou usar as ferramentas do navegador para inspecionar Network/Fetch.
 
 ### Critérios de aceite da etapa 6
 
@@ -304,6 +457,18 @@ O backend será normalmente `http://127.0.0.1:8000`; o Vite informará a URL do 
 5. Downloads CSV/PDF funcionam autenticados.
 6. `npm run build` passa.
 7. Nenhuma tela integrada usa dados simulados como fallback silencioso.
+
+### Pendências, riscos e dúvidas que exigem decisão na etapa 6
+
+| Tema | Situação atual | Decisão necessária |
+| --- | --- | --- |
+| Seleção de imóvel | Algumas telas assumem um único imóvel, mas o backend permite vários imóveis visíveis. | Definir seletor global de imóvel ou regra de imóvel padrão. |
+| Operador no frontend | Menu atual possui páginas parcialmente demonstrativas. | Confirmar quais telas de operador devem ser integradas primeiro. |
+| Comunicados | `ResidentNoticesPage` não tem model/endpoint. | Manter demonstrativa ou aprovar novo domínio. |
+| Perfil e conta | A tela sugere edição de conta; não há endpoint seguro de autoedição definido. | Aprovar escopo de atualização de perfil/senha ou mantê-la somente leitura. |
+| Gráficos | A API entrega agregados e leituras; a interface atual possui séries demonstrativas. | Confirmar períodos, unidades e indicadores necessários para cada gráfico. |
+| Polling | Proposta inicial: 30 segundos no dashboard. | Confirmar intervalo aceitável e quais páginas devem atualizar automaticamente. |
+| Chave de dispositivo | É segredo de integração, não dado de usuário web. | Confirmar que nenhuma tela React exibirá ou permitirá copiar a chave. |
 
 ## Etapa 7 — entrega local e preparação de produção
 
@@ -333,6 +498,25 @@ Implementações planejadas:
 4. Criar fallback de SPA que devolve `index.html` apenas para rotas do React que não começam com `/api/`, `/admin/` ou `/static/`.
 5. Preservar rotas da API antes do fallback para impedir que um endpoint inexistente retorne HTML da SPA.
 6. Executar `collectstatic` no ambiente de produção e confirmar que os assets possuem hash e são carregados pelo `index.html`.
+
+#### Teste prático previsto da entrega
+
+Após a implementação, a validação local deverá ocorrer em três fases:
+
+```powershell
+# 1. Gera frontend/dist
+Set-Location frontend
+npm run build
+Set-Location ..
+
+# 2. Reúne arquivos estáticos do Django/WhiteNoise
+.\venv\Scripts\python.exe manage.py collectstatic --noinput
+
+# 3. Executa Django, que deverá servir frontend/dist e a API
+.\venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
+```
+
+No navegador, acessar `http://127.0.0.1:8000/`. Diferentemente da etapa 6, não será necessário iniciar o Vite para testar o build final. Também serão testadas manualmente uma rota interna da SPA, como uma tela de dashboard, e uma rota de API inválida, para confirmar que o fallback entrega `index.html` apenas para a interface React e não mascara erros da API.
 
 ### 7.2 — Configuração por ambiente
 
@@ -364,7 +548,19 @@ SQLite continua adequado ao MVP se houver baixa concorrência de escrita. A entr
 
 Não será adicionado um banco diferente nesta etapa sem decisão arquitetural e migração planejada.
 
-### 7.4 — Dados mínimos demonstráveis
+### 7.4 — Pendências e dúvidas de infraestrutura
+
+| Tema | Dúvida pendente | Impacto se não for definido |
+| --- | --- | --- |
+| Hospedagem | Onde Django será executado: máquina local, VPS, PaaS ou servidor institucional? | Não é possível concluir configuração de processo, domínio e persistência. |
+| HTTPS | Haverá proxy reverso/TLS confiável? | Cookies `Secure` e redirecionamento HTTPS não podem ser habilitados com segurança. |
+| Domínio | Qual domínio e subdomínio serão usados? | `ALLOWED_HOSTS`, cookies e remetente de e-mail permanecem genéricos. |
+| E-mail | Qual provedor SMTP/serviço e quais credenciais serão utilizados? | Verificação de técnico só funciona em console, não entrega mensagens reais. |
+| Backup | Onde e com qual frequência guardar backup do SQLite? | Risco de perda de dados operacionais. |
+| Execução | Uma ou várias instâncias Django serão necessárias? | SQLite não deve ser compartilhado por múltiplas instâncias concorrentes. |
+| Observabilidade | Onde registrar logs e erros de produção? | Diagnóstico de falhas fica restrito ao console do processo. |
+
+### 7.5 — Dados mínimos demonstráveis
 
 Antes da demonstração integrada, a base local deverá ter:
 
@@ -377,7 +573,7 @@ Antes da demonstração integrada, a base local deverá ter:
 
 Será avaliado criar um comando `seed_demo` idempotente. Ele só será implementado se os dados demonstrativos e as credenciais forem aprovados, pois cria registros persistentes no banco local.
 
-### 7.5 — Critérios de aceite da etapa 7
+### 7.6 — Critérios de aceite da etapa 7
 
 1. `npm run build` conclui sem erros.
 2. `collectstatic --noinput` conclui sem arquivos ausentes.
@@ -418,6 +614,21 @@ Itens a executar:
 4. Revisar `.gitignore` para confirmar exclusão de `.env`, `db.sqlite3`, `staticfiles/`, ambientes virtuais e artefatos de build não desejados.
 5. Atualizar este documento com o resultado das etapas 6 a 8 e com desvios aprovados.
 6. Preparar lista de limitações conhecidas para apresentação: SQLite, polling em vez de WebSocket, ausência de comunicados persistidos e ausência de integração com hardware físico.
+
+### Pendências que não devem ser ocultadas no encerramento
+
+- O estado de válvula é lógico; não existe confirmação de hardware real.
+- A única regra de anomalia atual é pico de consumo; demais tipos de alerta requerem dados e parâmetros aprovados.
+- Comunicados do morador não possuem domínio persistido.
+- Recuperação de senha, reenvio de código de técnico e autoedição de perfil não possuem fluxos aprovados.
+- O dashboard será baseado em polling, não WebSocket.
+- SQLite é apropriado ao MVP, mas deve ser reavaliado para alta concorrência de escrita ou múltiplas instâncias.
+- Relatórios grandes ainda são síncronos e podem exigir fila assíncrona no futuro.
+- Interface administrativa para cadastrar dados demonstrativos ainda depende de decisão entre Django Admin e `seed_demo`.
+
+### Evidências de homologação a registrar
+
+Para cada item da matriz, a homologação deverá registrar data, ambiente, perfil utilizado, resultado, evidência (captura de tela ou resposta relevante) e pendência encontrada. Um erro crítico não deve ser compensado apenas por teste unitário verde: o fluxo deve funcionar com sessão, banco e frontend reais.
 
 ### Critério de encerramento do projeto
 

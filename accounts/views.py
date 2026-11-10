@@ -2,14 +2,21 @@ from django.contrib.auth import login, logout
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import User
 from .permissions import IsAdministratorRole
-from .serializers import EmailVerificationSerializer, LoginSerializer, UserCreateSerializer, UserSerializer
-from .services import AccountValidationError, authenticate_user, create_user, verify_email
+from .serializers import (
+    EmailVerificationSerializer,
+    LoginSerializer,
+    ResendVerificationSerializer,
+    UserCreateSerializer,
+    UserSerializer,
+)
+from .services import AccountValidationError, authenticate_user, create_user, resend_verification_code, verify_email
+from .throttles import VerificationRateThrottle
 from hidroscan.services import register_audit
 
 
@@ -61,6 +68,7 @@ def me(request):
 @csrf_required
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([VerificationRateThrottle])
 def email_verification(request):
     serializer = EmailVerificationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -69,12 +77,36 @@ def email_verification(request):
         if user.role != User.Role.TECNICO:
             raise AccountValidationError("Código de verificação inválido ou expirado.")
         verify_email(user=user, code=serializer.validated_data["code"])
-    except User.DoesNotExist:
+    except (User.DoesNotExist, User.MultipleObjectsReturned):
         return Response({"detail": "Código de verificação inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
     except AccountValidationError:
         return Response({"detail": "Código de verificação inválido ou expirado."}, status=status.HTTP_400_BAD_REQUEST)
     register_audit(actor=user, action="user.email_verified", resource=user)
     return Response(UserSerializer(user).data)
+
+
+@extend_schema(request=ResendVerificationSerializer, responses={204: None})
+@api_view(["POST"])
+@permission_classes([IsAdministratorRole])
+def resend_verification(request):
+    serializer = ResendVerificationSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        user = User.objects.get(email__iexact=serializer.validated_data["email"])
+    except User.DoesNotExist:
+        return Response({"detail": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+    except User.MultipleObjectsReturned:
+        return Response({"detail": "Erro interno ao localizar o usuário."}, status=status.HTTP_400_BAD_REQUEST)
+    if user.role != User.Role.TECNICO:
+        return Response({"detail": "Reenvio permitido apenas para técnicos."}, status=status.HTTP_400_BAD_REQUEST)
+    if user.email_verificado:
+        return Response({"detail": "E-mail já verificado."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        resend_verification_code(user=user)
+    except AccountValidationError as error:
+        return Response({"detail": str(error)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+    register_audit(actor=request.user, action="user.verification_resent", resource=user)
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class UserViewSet(viewsets.ModelViewSet):

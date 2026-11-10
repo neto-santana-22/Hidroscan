@@ -77,7 +77,6 @@ function App() {
             <div className="form-field">
               <div className="form-label-row">
                 <label htmlFor="password">Senha</label>
-                <a href="#recuperar-senha">Esqueceu a senha?</a>
               </div>
 
               <input

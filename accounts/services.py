@@ -14,6 +14,10 @@ class AccountValidationError(ValueError):
     pass
 
 
+VERIFICATION_TTL = timedelta(minutes=5)
+RESEND_COOLDOWN = timedelta(seconds=60)
+
+
 def create_user(*, email, password, role, **extra_fields):
     with transaction.atomic():
         user = User.objects.create_user(email=email, password=password, role=role, **extra_fields)
@@ -31,7 +35,7 @@ def send_verification_code(user):
         user=user,
         defaults={
             "code_hash": make_password(code),
-            "expires_at": timezone.now() + timedelta(minutes=5),
+            "expires_at": timezone.now() + VERIFICATION_TTL,
             "attempts": 0,
             "used_at": None,
         },
@@ -42,6 +46,18 @@ def send_verification_code(user):
         from_email=None,
         recipient_list=[user.email],
     )
+
+
+def resend_verification_code(*, user):
+    """Gera e envia novo código de verificação, respeitando cooldown de 60s."""
+    try:
+        verification = EmailVerification.objects.get(user=user)
+        sent_at = verification.expires_at - VERIFICATION_TTL
+        if timezone.now() - sent_at < RESEND_COOLDOWN:
+            raise AccountValidationError("Aguarde antes de solicitar um novo código.")
+    except EmailVerification.DoesNotExist:
+        pass
+    send_verification_code(user)
 
 
 def verify_email(*, user, code):

@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
-from .views import UserViewSet, csrf, email_verification, login_view, logout_view, me
+from .views import UserViewSet, csrf, email_verification, login_view, logout_view, me, resend_verification
 
 router = DefaultRouter()
 router.register("usuarios", UserViewSet, basename="user")
@@ -12,5 +12,6 @@ urlpatterns = [
     path("auth/logout/", logout_view, name="logout"),
     path("auth/me/", me, name="me"),
     path("auth/verificacao-email/", email_verification, name="email-verification"),
+    path("auth/reenvio-verificacao/", resend_verification, name="resend-verification"),
 ]
 urlpatterns += router.urls
