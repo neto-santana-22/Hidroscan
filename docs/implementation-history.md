@@ -130,14 +130,15 @@ Recursos fora do escopo retornam `404`, não confirmação de existência.
 
 - **Reenvio de código de verificação**: implementado endpoint `POST /api/auth/reenvio-verificacao/` acessível por administrador autenticado, permitindo emitir novo código para técnicos não verificados, com cooldown de 60 segundos entre reenvios e auditoria da ação (`user.verification_resent`).
 - **Throttling e proteção contra spoofing**: adicionado `VerificationRateThrottle` limitando em 10 requisições por minuto por IP no endpoint público de conferência de código e configurado `NUM_PROXIES` em `REST_FRAMEWORK` (padrão 0 em desenvolvimento para uso direto de `REMOTE_ADDR`), impedindo contorno de throttle por forjamento de cabeçalho `X-Forwarded-For`.
-- **Normalização e tratamento de e-mail**: padronizado o salvamento de e-mails em caixa baixa tanto em `clean()` e `save()` no model `User`, quanto em `LoginSerializer` e `authenticate_user`. A verificação e o login passam a tratar o e-mail de forma consistente, com captura defensiva de `MultipleObjectsReturned`.
-- **Unificação de constantes de verificação**: `VERIFICATION_TTL` centralizado em `accounts.models` e reutilizado em `services.py` e `verification_expiry`.
+- **Normalização e tratamento de e-mail**: padronizado o salvamento de e-mails em caixa baixa tanto em `clean()` e `save()` no model `User`, quanto em `LoginSerializer`, `UserCreateSerializer`, `UserSerializer` e `authenticate_user`. Criada migração de dados `accounts.0002_normalize_existing_emails` com detecção proativa e bloqueio com mensagem detalhada em caso de colisões prévias. A validação de e-mail na API rejeita duplicidades case-insensitive com `400 Bad Request` antes do banco, prevenindo `IntegrityError` (500).
+- **Unificação de constantes de verificação**: `VERIFICATION_TTL` centralizado em `accounts.models` e reutilizado em `services.py` (`send_verification_code` e `resend_verification_code`) e `verification_expiry`.
 - **Formulários e operações no Django Admin**:
-  - `UserAdmin` agora conta com `UserCreationForm` e `UserChangeForm` dedicados, adaptados ao modelo sem `username` e com campos `password_confirm`, `role` e `todas_regioes`.
+  - `UserAdmin` agora conta com `UserCreationForm` e `UserChangeForm` dedicados, adaptados ao modelo sem `username` e com campos `password_confirm`, `role` e `todas_regioes`. O formulário de edição inclui link funcional `<a href="../password/">` para alteração de senha.
   - Novos usuários criados no Admin recebem `email_verificado=True` automaticamente, com exceção de técnicos, que recebem código de verificação disparado no cadastro.
   - `DeviceAdmin` possui `DeviceAdminForm` com campo seguro para inserção/redefinição de chave (`device_key`), gerando o hash correto no salvamento.
-  - Sobrescrito `delete_queryset` em todos os `ModelAdmin`s para garantir auditoria em exclusões em massa.
-- **Isolamento de cache nos testes**: limpeza do cache de throttle (`cache.clear()`) em `setUp` e `tearDown` dos testes de autenticação.
+  - Sobrescrito `delete_queryset` em todos os `ModelAdmin`s para garantir auditoria em exclusões em massa, e operações de salvamento/exclusão envolvidas em `transaction.atomic()` para evitar registros órfãos de auditoria caso ocorra falha de banco.
+- **Configuração de Proxy e Throttle**: `.env.example` atualizado documentando `NUM_PROXIES` para ambientes atrás de proxy reverso e direto.
+- **Cobertura de Testes**: suíte de `accounts` expandida para 25 testes (cobrindo formulários de criação/edição do Admin, detecção de colisão na migração, fieldsets, validações de senha, bloqueio de throttle mesmo com falsificação de `X-Forwarded-For` e duplicidades case-insensitive na API), totalizando 43 testes automatizados 100% aprovados em todo o projeto.
 - **Link "Esqueceu a senha?"**: removido do formulário de login no frontend React para não induzir fluxo inexistente antes de sua especificação.
 - **Registro no Django Admin com auditoria**: criados registros de models em `accounts/admin.py` e `hidroscan/admin.py` com auditoria em `save_model`, `delete_model` e `delete_queryset`.
 

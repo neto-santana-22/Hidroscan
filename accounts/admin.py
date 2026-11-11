@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
+from django.db import transaction
 
 from hidroscan.services import register_audit
 
@@ -41,7 +42,7 @@ class UserChangeForm(forms.ModelForm):
         label="Senha",
         help_text=(
             "As senhas não são armazenadas em texto simples. "
-            "Para alterá-la, utilize a tela de redefinição de senha."
+            'Para alterá-la, utilize <a href="{}">este formulário</a>.'
         ),
     )
 
@@ -58,6 +59,12 @@ class UserChangeForm(forms.ModelForm):
             "is_staff",
             "is_superuser",
         )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        password = self.fields.get("password")
+        if password and self.instance and self.instance.pk:
+            password.help_text = password.help_text.format("../password/")
 
     def clean_email(self):
         return self.cleaned_data["email"].strip().lower()
@@ -107,20 +114,23 @@ class UserAdmin(BaseUserAdmin):
                 obj.email_verificado = False
             else:
                 obj.email_verificado = True
-        super().save_model(request, obj, form, change)
-        if is_new and obj.role == User.Role.TECNICO:
-            send_verification_code(obj)
-        action = "user.updated" if change else "user.created"
-        register_audit(actor=request.user, action=action, resource=obj)
+        with transaction.atomic():
+            super().save_model(request, obj, form, change)
+            if is_new and obj.role == User.Role.TECNICO:
+                send_verification_code(obj)
+            action = "user.updated" if change else "user.created"
+            register_audit(actor=request.user, action=action, resource=obj)
 
     def delete_model(self, request, obj):
-        register_audit(actor=request.user, action="user.deleted", resource=obj)
-        super().delete_model(request, obj)
+        with transaction.atomic():
+            register_audit(actor=request.user, action="user.deleted", resource=obj)
+            super().delete_model(request, obj)
 
     def delete_queryset(self, request, queryset):
-        for obj in queryset:
-            register_audit(actor=request.user, action="user.deleted", resource=obj)
-        super().delete_queryset(request, queryset)
+        with transaction.atomic():
+            for obj in queryset:
+                register_audit(actor=request.user, action="user.deleted", resource=obj)
+            super().delete_queryset(request, queryset)
 
 
 @admin.register(EmailVerification)
