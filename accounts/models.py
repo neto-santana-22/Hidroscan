@@ -50,12 +50,25 @@ class User(AbstractUser):
     REQUIRED_FIELDS: list[str] = []
     objects = UserManager()
 
+    def clean(self):
+        super().clean()
+        if self.email:
+            self.email = self.email.strip().lower()
+
+    def save(self, *args, **kwargs):
+        if self.email:
+            self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.email
 
 
+VERIFICATION_TTL = timedelta(minutes=5)
+
+
 def verification_expiry():
-    return timezone.now() + timedelta(minutes=5)
+    return timezone.now() + VERIFICATION_TTL
 
 
 class EmailVerification(models.Model):

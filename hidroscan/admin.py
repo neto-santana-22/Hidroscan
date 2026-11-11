@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 
 from .models import AuditLog, Device, Property, Region, RegionAccess
@@ -19,6 +20,11 @@ class RegionAdmin(admin.ModelAdmin):
         register_audit(actor=request.user, action="region.deleted", resource=obj)
         super().delete_model(request, obj)
 
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            register_audit(actor=request.user, action="region.deleted", resource=obj)
+        super().delete_queryset(request, queryset)
+
 
 @admin.register(Property)
 class PropertyAdmin(admin.ModelAdmin):
@@ -36,15 +42,44 @@ class PropertyAdmin(admin.ModelAdmin):
         register_audit(actor=request.user, action="property.deleted", resource=obj)
         super().delete_model(request, obj)
 
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            register_audit(actor=request.user, action="property.deleted", resource=obj)
+        super().delete_queryset(request, queryset)
+
+
+class DeviceAdminForm(forms.ModelForm):
+    device_key = forms.CharField(
+        label="Chave do dispositivo (X-Device-Key)",
+        widget=forms.PasswordInput,
+        required=False,
+        help_text="Obrigatório na criação. Na edição, preencha apenas se desejar redefinir a chave.",
+    )
+
+    class Meta:
+        model = Device
+        fields = ["property", "name", "serial_number", "active", "device_key"]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        key = cleaned_data.get("device_key")
+        if not self.instance.pk and not key:
+            self.add_error("device_key", "A chave do dispositivo é obrigatória no cadastro.")
+        return cleaned_data
+
 
 @admin.register(Device)
 class DeviceAdmin(admin.ModelAdmin):
+    form = DeviceAdminForm
     list_display = ["name", "serial_number", "property", "valve_state", "active"]
     search_fields = ["name", "serial_number"]
     list_filter = ["active", "valve_state"]
     readonly_fields = ["device_key_hash", "valve_state", "last_reading_at"]
 
     def save_model(self, request, obj, form, change):
+        raw_key = form.cleaned_data.get("device_key")
+        if raw_key:
+            obj.set_device_key(raw_key)
         super().save_model(request, obj, form, change)
         action = "device.updated" if change else "device.created"
         register_audit(actor=request.user, action=action, resource=obj)
@@ -52,6 +87,11 @@ class DeviceAdmin(admin.ModelAdmin):
     def delete_model(self, request, obj):
         register_audit(actor=request.user, action="device.deleted", resource=obj)
         super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            register_audit(actor=request.user, action="device.deleted", resource=obj)
+        super().delete_queryset(request, queryset)
 
 
 @admin.register(RegionAccess)
@@ -68,6 +108,11 @@ class RegionAccessAdmin(admin.ModelAdmin):
     def delete_model(self, request, obj):
         register_audit(actor=request.user, action="regionaccess.deleted", resource=obj)
         super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            register_audit(actor=request.user, action="regionaccess.deleted", resource=obj)
+        super().delete_queryset(request, queryset)
 
 
 @admin.register(AuditLog)

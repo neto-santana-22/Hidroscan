@@ -29,6 +29,9 @@ class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(trim_whitespace=False, write_only=True)
 
+    def validate_email(self, value):
+        return value.strip().lower()
+
 
 class EmailVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField()

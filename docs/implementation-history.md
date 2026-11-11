@@ -129,16 +129,24 @@ Recursos fora do escopo retornam `404`, não confirmação de existência.
 ### Ajustes e resolução das pendências da etapa 2
 
 - **Reenvio de código de verificação**: implementado endpoint `POST /api/auth/reenvio-verificacao/` acessível por administrador autenticado, permitindo emitir novo código para técnicos não verificados, com cooldown de 60 segundos entre reenvios e auditoria da ação (`user.verification_resent`).
-- **Throttling no endpoint de verificação**: adicionado `VerificationRateThrottle` limitando em 10 requisições por minuto por IP no endpoint público de conferência de código.
-- **Normalização e tratamento de e-mail**: padronizado o salvamento de e-mails em caixa baixa no `UserManager` e adicionado tratamento defensivo para `MultipleObjectsReturned` na verificação de código.
+- **Throttling e proteção contra spoofing**: adicionado `VerificationRateThrottle` limitando em 10 requisições por minuto por IP no endpoint público de conferência de código e configurado `NUM_PROXIES` em `REST_FRAMEWORK` (padrão 0 em desenvolvimento para uso direto de `REMOTE_ADDR`), impedindo contorno de throttle por forjamento de cabeçalho `X-Forwarded-For`.
+- **Normalização e tratamento de e-mail**: padronizado o salvamento de e-mails em caixa baixa tanto em `clean()` e `save()` no model `User`, quanto em `LoginSerializer` e `authenticate_user`. A verificação e o login passam a tratar o e-mail de forma consistente, com captura defensiva de `MultipleObjectsReturned`.
+- **Unificação de constantes de verificação**: `VERIFICATION_TTL` centralizado em `accounts.models` e reutilizado em `services.py` e `verification_expiry`.
+- **Formulários e operações no Django Admin**:
+  - `UserAdmin` agora conta com `UserCreationForm` e `UserChangeForm` dedicados, adaptados ao modelo sem `username` e com campos `password_confirm`, `role` e `todas_regioes`.
+  - Novos usuários criados no Admin recebem `email_verificado=True` automaticamente, com exceção de técnicos, que recebem código de verificação disparado no cadastro.
+  - `DeviceAdmin` possui `DeviceAdminForm` com campo seguro para inserção/redefinição de chave (`device_key`), gerando o hash correto no salvamento.
+  - Sobrescrito `delete_queryset` em todos os `ModelAdmin`s para garantir auditoria em exclusões em massa.
+- **Isolamento de cache nos testes**: limpeza do cache de throttle (`cache.clear()`) em `setUp` e `tearDown` dos testes de autenticação.
 - **Link "Esqueceu a senha?"**: removido do formulário de login no frontend React para não induzir fluxo inexistente antes de sua especificação.
-- **Registro no Django Admin com auditoria**: criados registros de models em `accounts/admin.py` (`User` com auditoria de criação/edição/deleção, `EmailVerification` somente leitura) e `hidroscan/admin.py` (`Region`, `Property`, `Device`, `RegionAccess` com auditoria; `AuditLog` somente leitura e imutável).
+- **Registro no Django Admin com auditoria**: criados registros de models em `accounts/admin.py` e `hidroscan/admin.py` com auditoria em `save_model`, `delete_model` e `delete_queryset`.
 
 ### Pendências e decisões ainda abertas da etapa 2
 
-- Não existe recuperação/troca de senha; o fluxo completo de redefinição de senha permanece a ser especificado e aprovado.
-- Alterações em registros efetuadas diretamente por shell continuam sem auditoria de aplicação (limitação do nível de banco/ORM sem signals globais).
-- Dependência entre apps: `accounts.views` consome `hidroscan.services.register_audit`, enquanto `hidroscan` referencia o model de usuário; caso seja desejável desacoplamento estrito, o serviço de auditoria poderá ser extraído para um módulo base em etapa futura.
+- Recuperação/troca de senha permanece a ser especificada e aprovada quando requerida.
+- Auditoria de operações efetuadas diretamente via shell Django continua sem interceptação (limitação de baixo nível/ORM sem signals globais).
+- Esgotamento de tentativas de técnicos por terceiros via endpoint público permanece como decisão de desenho mitigada por throttle de IP e desbloqueio/reenvio por administrador autenticado.
+- Dependência conceitual entre apps: `accounts.views` consome `hidroscan.services.register_audit`, enquanto `hidroscan` referencia o model de usuário; desacoplamento estrito poderá ser feito via módulo base em etapa futura se desejado.
 
 ## Etapa 3 — monitoramento
 

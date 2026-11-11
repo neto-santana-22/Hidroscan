@@ -7,14 +7,13 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
 
-from .models import EmailVerification, User
+from .models import EmailVerification, User, VERIFICATION_TTL
 
 
 class AccountValidationError(ValueError):
     pass
 
 
-VERIFICATION_TTL = timedelta(minutes=5)
 RESEND_COOLDOWN = timedelta(seconds=60)
 
 
@@ -88,6 +87,7 @@ def verify_email(*, user, code):
 
 
 def authenticate_user(*, request, email, password):
+    email = email.strip().lower() if email else email
     user = authenticate(request, email=email, password=password)
     if user is None:
         raise AccountValidationError("E-mail ou senha inválidos.")

@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
@@ -10,12 +11,17 @@ from .models import EmailVerification, User
 
 class AuthenticationApiTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
         self.user = User.objects.create_user(
             email="morador@example.com",
             password="senha-segura-123",
             role=User.Role.MORADOR,
         )
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
 
     def test_login_returns_authenticated_user_and_creates_audit_record(self):
         response = self.client.post(
@@ -269,3 +275,122 @@ class AuthenticationApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("verificado", response.data["detail"])
+
+
+    def test_login_is_case_insensitive(self):
+        response = self.client.post(
+            "/api/auth/login/",
+            {"email": "MORADOR@EXAMPLE.COM", "password": "senha-segura-123"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["email"], "morador@example.com")
+
+    def test_user_save_normalizes_email_to_lowercase(self):
+        user = User(email="UPPERCASE@EXAMPLE.COM", role=User.Role.MORADOR)
+        user.set_password("senha-segura-123")
+        user.save()
+        self.assertEqual(user.email, "uppercase@example.com")
+        reloaded = User.objects.get(pk=user.pk)
+        self.assertEqual(reloaded.email, "uppercase@example.com")
+
+
+class AdminIntegrationTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.admin_user = User.objects.create_superuser(
+            email="admin_admin@example.com",
+            password="admin-password-123",
+        )
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def test_admin_user_creation_sets_verified_for_operador_and_audits(self):
+        from django.contrib.admin.sites import AdminSite
+        from accounts.admin import UserAdmin
+        from accounts.admin import UserCreationForm
+        from django.test import RequestFactory
+
+        site = AdminSite()
+        ua = UserAdmin(User, site)
+        rf = RequestFactory()
+        req = rf.post("/admin/accounts/user/add/")
+        req.user = self.admin_user
+
+        user = User(email="operador_admin@example.com", role=User.Role.OPERADOR)
+        user.set_password("senha123")
+        ua.save_model(req, user, None, change=False)
+
+        user.refresh_from_db()
+        self.assertTrue(user.email_verificado)
+        self.assertTrue(AuditLog.objects.filter(action="user.created", resource_id=str(user.pk)).exists())
+
+    def test_admin_user_creation_for_technician_triggers_verification(self):
+        from django.contrib.admin.sites import AdminSite
+        from accounts.admin import UserAdmin
+        from django.test import RequestFactory
+
+        site = AdminSite()
+        ua = UserAdmin(User, site)
+        rf = RequestFactory()
+        req = rf.post("/admin/accounts/user/add/")
+        req.user = self.admin_user
+
+        tech = User(email="tech_admin@example.com", role=User.Role.TECNICO)
+        tech.set_password("senha123")
+        ua.save_model(req, tech, None, change=False)
+
+        tech.refresh_from_db()
+        self.assertFalse(tech.email_verificado)
+        self.assertTrue(EmailVerification.objects.filter(user=tech).exists())
+
+    def test_admin_device_creation_hashes_key_and_audits(self):
+        from django.contrib.admin.sites import AdminSite
+        from hidroscan.admin import DeviceAdmin, DeviceAdminForm
+        from hidroscan.models import Region, Property, Device
+        from django.test import RequestFactory
+
+        region = Region.objects.create(name="Zona Sul", code="zona-sul")
+        prop = Property.objects.create(name="Edifício Sol", address="Rua 1", region=region, owner=self.admin_user)
+
+        site = AdminSite()
+        da = DeviceAdmin(Device, site)
+        rf = RequestFactory()
+        req = rf.post("/admin/hidroscan/device/add/")
+        req.user = self.admin_user
+
+        form = DeviceAdminForm(data={
+            "property": prop.pk,
+            "name": "Hidrômetro Bloco A",
+            "serial_number": "HIDRO-ADMIN-01",
+            "active": True,
+            "device_key": "chave-secreta-123",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        device = form.save(commit=False)
+        da.save_model(req, device, form, change=False)
+
+        device.refresh_from_db()
+        self.assertTrue(device.check_device_key("chave-secreta-123"))
+        self.assertTrue(AuditLog.objects.filter(action="device.created", resource_id=str(device.pk)).exists())
+
+    def test_admin_delete_queryset_audits_each_item(self):
+        from django.contrib.admin.sites import AdminSite
+        from accounts.admin import UserAdmin
+        from django.test import RequestFactory
+
+        u1 = User.objects.create_user(email="del1@example.com", password="pwd", role=User.Role.MORADOR)
+        u2 = User.objects.create_user(email="del2@example.com", password="pwd", role=User.Role.MORADOR)
+
+        site = AdminSite()
+        ua = UserAdmin(User, site)
+        rf = RequestFactory()
+        req = rf.post("/admin/accounts/user/")
+        req.user = self.admin_user
+
+        ua.delete_queryset(req, User.objects.filter(pk__in=[u1.pk, u2.pk]))
+        self.assertEqual(User.objects.filter(pk__in=[u1.pk, u2.pk]).count(), 0)
+        self.assertTrue(AuditLog.objects.filter(action="user.deleted", resource_id=str(u1.pk)).exists())
+        self.assertTrue(AuditLog.objects.filter(action="user.deleted", resource_id=str(u2.pk)).exists())
