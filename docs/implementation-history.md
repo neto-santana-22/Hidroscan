@@ -142,12 +142,12 @@ Recursos fora do escopo retornam `404`, não confirmação de existência.
 - **Link "Esqueceu a senha?"**: removido do formulário de login no frontend React para não induzir fluxo inexistente antes de sua especificação.
 - **Registro no Django Admin com auditoria**: criados registros de models em `accounts/admin.py` e `hidroscan/admin.py` com auditoria em `save_model`, `delete_model` e `delete_queryset`.
 
-### Pendências e decisões ainda abertas da etapa 2
+### Decisões consolidadas e pendências da etapa 2
 
-- Recuperação/troca de senha permanece a ser especificada e aprovada quando requerida.
-- Auditoria de operações efetuadas diretamente via shell Django continua sem interceptação (limitação de baixo nível/ORM sem signals globais).
-- Esgotamento de tentativas de técnicos por terceiros via endpoint público permanece como decisão de desenho mitigada por throttle de IP e desbloqueio/reenvio por administrador autenticado.
-- Dependência conceitual entre apps: `accounts.views` consome `hidroscan.services.register_audit`, enquanto `hidroscan` referencia o model de usuário; desacoplamento estrito poderá ser feito via módulo base em etapa futura se desejado.
+- **Recuperação de senha**: Não haverá recuperação de senha no MVP. Não existe código conflitante ou em aberto no backend (nenhuma view, rota ou serializer de redefinição). O link visual no frontend já foi removido. Caso haja necessidade de troca de senha no ambiente local/demonstração, o administrador pode realizá-la diretamente pelo Django Admin.
+- **Acoplamento entre apps**: Definido manter o acoplamento atual entre `accounts` e `hidroscan` (com `accounts.views` utilizando `register_audit` de `hidroscan`). Em uma aplicação monolítica executada localmente, essa dependência não gera impacto operacional nem import circular em runtime.
+- **Auditoria por shell**: Mantida a limitação conhecida de que comandos diretos via `manage.py shell` não geram logs de auditoria de aplicação.
+- **Tentativas de verificação**: Esgotamento por terceiros permanece como decisão de desenho mitigada pelo throttle de IP e desbloqueio/reenvio exclusivo por administrador autenticado.
 
 ## Etapa 3 — monitoramento
 
@@ -189,11 +189,11 @@ O comando `simulate_readings` cria leituras crescentes pelo mesmo serviço da AP
 
 O cálculo de consumo parte de zero para a primeira leitura do dispositivo. Cada leitura posterior guarda a diferença já calculada, permitindo consultas e relatórios sem recalcular toda a série em cada requisição.
 
-### Pendências e decisões ainda abertas da etapa 3
+### Decisões consolidadas e pendências da etapa 3
 
-- O simulador gera somente leituras históricas crescentes; não há cenários prontos para falha de comunicação, bateria ou pressão, porque esses atributos não fazem parte do model atual de `Device`.
-- O dashboard atual retorna resumo agregado de imóveis, dispositivos, consumo diário e última leitura. Definições adicionais de KPIs e granularidade de gráficos deverão ser confirmadas durante a integração visual.
-- Não existe retenção/arquivamento de leituras nem política de volume de dados. Isso deve ser reavaliado antes de cargas prolongadas de sensores reais.
+- **Carga de dados de demonstração**: Aprovada a criação do comando `python manage.py seed_demo` (Sugestão 2) para inicializar a base local com dados fictícios prontos para apresentação (usuários de cada papel, imóveis, dispositivos e leituras simuladas).
+- **Limitação de volume e janela de simulação**: Aprovado limitar a janela do simulador `simulate_readings` (Sugestão 1) a um horizonte máximo de 48 horas de leituras históricas, preservando a leveza e a performance do SQLite local no MVP.
+- **Falhas de telemetria**: Cenários de perda de bateria ou sinal permanecem fora do escopo do model `Device` no MVP, uma vez que todos os dados de sensores são simulados e fictícios.
 
 ## Etapa 4 — operação
 
@@ -225,12 +225,11 @@ Técnicos, operadores e administradores atuam somente no escopo regional. Técni
 
 Toda transição validada cria auditoria. A atualização de ocorrência também registra uma linha em `OccurrenceUpdate`, preservando o histórico textual e o status aplicado.
 
-### Pendências e decisões ainda abertas da etapa 4
+### Decisões consolidadas e pendências da etapa 4
 
-- A regra de alerta atual cobre somente pico de consumo. Limiar, severidade e regras adicionais — vazamento contínuo, ausência de comunicação ou pressão — dependem de requisitos e dados de sensor que ainda não existem no schema.
-- Não há ação formal de resolver alerta nem ligação automática de alerta para ocorrência. A criação de ocorrência a partir de alerta permanece uma ação explícita para evitar automações indevidas.
-- Não há comentários/anexos em ordens de serviço, agenda de técnico ou notificação ao morador. Esses itens não devem ser inferidos a partir das telas demonstrativas.
-- O frontend contém telas com dados técnicos simulados de equipamentos e intervenções; os campos correspondentes ainda não possuem modelos dedicados.
+- **Escopo e responsabilidade do Frontend**: O desenvolvimento e as telas do frontend são de responsabilidade exclusiva de outro integrante da equipe. O backend manterá estritamente as regras de negócio, endpoints e validações sem realizar alterações no código de interface.
+- **Regras de anomalia e alertas**: Mantida a regra existente de pico de consumo incremental como critério suficiente para o MVP local com dados simulados. A conversão de Alerta para Ocorrência permanece manual via endpoint explícito.
+- **Anexos e dados operacionais extras**: Comentários com fotos, anexos pesados e agenda externa não farão parte do backend no MVP, simplificando o escopo operacional.
 
 ## Etapa 5 — válvulas e relatórios
 
@@ -265,12 +264,11 @@ Tipos suportados: `consumo`, `leituras`, `alertas` e `ocorrencias`. Filtros opci
 - `POST` bloqueia o dispositivo na transação, cria `ValveCommand`, muda o estado persistido e registra `valve.commanded`.
 - A implementação representa o estado aceito pelo software. Ainda não existe protocolo de confirmação com hardware físico; portanto, “aplicado” significa que o comando foi gravado e o estado lógico foi atualizado, não que uma válvula remota confirmou a execução.
 
-### Pendências e decisões ainda abertas da etapa 5
+### Decisões consolidadas e pendências da etapa 5
 
-- Integração com controlador/hardware de válvula não está implementada. Será necessário definir protocolo, timeout, confirmação, reenvio, estados de falha e reconciliação do estado físico.
-- PDFs utilizam layout textual simples. Identidade visual, cabeçalho institucional, paginação avançada e tabelas extensas podem exigir um template aprovado.
-- Relatórios atuais não incluem ordens de serviço ou solicitações. A inclusão depende de confirmar necessidade, filtros e campos permitidos por perfil.
-- Não há fila assíncrona para relatórios grandes. Para o MVP, exportações são síncronas; volumes elevados devem motivar processamento assíncrono.
+- **Controle de válvula com resposta lógica imediata**: Aprovada a Sugestão 1. Como a aplicação é um MVP local com sensores fictícios e sem atuadores IoT reais, o acionamento de válvula é considerado concluído com a atualização lógica imediata no banco de dados (`Device.valve_state`) e seu registro de auditoria (`valve.commanded`). Nenhuma alteração no frontend será realizada por este agente.
+- **Descontinuação de relatórios PDF e CSV**: Decidido retirar a geração de PDF e CSV do escopo do MVP, mantendo a aplicação focada em visualização direta em tela e dados simulados leves.
+- **Hardware físico e fila assíncrona**: Protocolos de reconciliação com atuadores físicos e mensageria/filas assíncronas permanecem oficialmente fora do escopo do MVP.
 
 ## Migrations e validações
 
@@ -467,17 +465,12 @@ Depois de existir um dispositivo ativo, o comando abaixo pode preencher históri
 6. `npm run build` passa.
 7. Nenhuma tela integrada usa dados simulados como fallback silencioso.
 
-### Pendências, riscos e dúvidas que exigem decisão na etapa 6
+### Decisões consolidadas e pendências da etapa 6
 
-| Tema | Situação atual | Decisão necessária |
-| --- | --- | --- |
-| Seleção de imóvel | Algumas telas assumem um único imóvel, mas o backend permite vários imóveis visíveis. | Definir seletor global de imóvel ou regra de imóvel padrão. |
-| Operador no frontend | Menu atual possui páginas parcialmente demonstrativas. | Confirmar quais telas de operador devem ser integradas primeiro. |
-| Comunicados | `ResidentNoticesPage` não tem model/endpoint. | Manter demonstrativa ou aprovar novo domínio. |
-| Perfil e conta | A tela sugere edição de conta; não há endpoint seguro de autoedição definido. | Aprovar escopo de atualização de perfil/senha ou mantê-la somente leitura. |
-| Gráficos | A API entrega agregados e leituras; a interface atual possui séries demonstrativas. | Confirmar períodos, unidades e indicadores necessários para cada gráfico. |
-| Polling | Proposta inicial: 30 segundos no dashboard. | Confirmar intervalo aceitável e quais páginas devem atualizar automaticamente. |
-| Chave de dispositivo | É segredo de integração, não dado de usuário web. | Confirmar que nenhuma tela React exibirá ou permitirá copiar a chave. |
+- **Seleção automática do primeiro imóvel**: Aprovada a Sugestão 2. O backend fornece a lista de imóveis por usuário/escopo em `GET /api/imoveis/`; a interface do cliente assume automaticamente o primeiro imóvel da listagem como o ativo para exibição de consumo e gráficos.
+- **Isolamento de atuação no Frontend**: Este agente não fará nenhuma modificação ou interferência nos arquivos da pasta `frontend/`, ficando a implementação das telas a cargo do responsável pela interface.
+- **Telas não cobertas no backend**: Páginas como Comunicados (`ResidentNoticesPage`) permanecem com dados estáticos de demonstração ou podem ser suprimidas na navegação a critério do desenvolvedor frontend.
+- **Chave de dispositivo**: Confirmado que a chave permanece confidencial e não é exposta pela API web.
 
 ## Etapa 7 — entrega local e preparação de produção
 
@@ -557,30 +550,21 @@ SQLite continua adequado ao MVP se houver baixa concorrência de escrita. A entr
 
 Não será adicionado um banco diferente nesta etapa sem decisão arquitetural e migração planejada.
 
-### 7.4 — Pendências e dúvidas de infraestrutura
+### 7.4 — Decisões de ambiente e execução local (MVP)
 
-| Tema | Dúvida pendente | Impacto se não for definido |
-| --- | --- | --- |
-| Hospedagem | Onde Django será executado: máquina local, VPS, PaaS ou servidor institucional? | Não é possível concluir configuração de processo, domínio e persistência. |
-| HTTPS | Haverá proxy reverso/TLS confiável? | Cookies `Secure` e redirecionamento HTTPS não podem ser habilitados com segurança. |
-| Domínio | Qual domínio e subdomínio serão usados? | `ALLOWED_HOSTS`, cookies e remetente de e-mail permanecem genéricos. |
-| E-mail | Qual provedor SMTP/serviço e quais credenciais serão utilizados? | Verificação de técnico só funciona em console, não entrega mensagens reais. |
-| Backup | Onde e com qual frequência guardar backup do SQLite? | Risco de perda de dados operacionais. |
-| Execução | Uma ou várias instâncias Django serão necessárias? | SQLite não deve ser compartilhado por múltiplas instâncias concorrentes. |
-| Observabilidade | Onde registrar logs e erros de produção? | Diagnóstico de falhas fica restrito ao console do processo. |
+- **Modo de execução local**: Aprovada a Sugestão 1 de desenvolvimento ágil: execução simultânea do backend Django (`python manage.py runserver` na porta 8000) e do frontend Vite (`npm run dev` na porta 5173), com o Vite configurado para repassar chamadas `/api/` para a porta 8000.
+- **Carga de dados de demonstração**: Aprovada a Sugestão 1 com a criação do comando `python manage.py seed_demo`, populando a base SQLite local de forma rápida e reproduzível com usuários dos 4 perfis, regiões, imóveis, dispositivos e leituras fictícias.
+- **Simplificação de infraestrutura**: Como a aplicação rodará estritamente de forma local, requisitos de hospedagem em nuvem, domínios externos, certificados SSL e provedores SMTP de terceiros foram dispensados. O envio de e-mails em desenvolvimento permanece no console (`console.EmailBackend`).
 
 ### 7.5 — Dados mínimos demonstráveis
 
-Antes da demonstração integrada, a base local deverá ter:
+A base local de demonstração será inicializada via comando `seed_demo`, contendo:
 
 - migrations aplicadas;
-- administrador inicial;
-- pelo menos uma região, imóvel, morador e dispositivo;
-- vínculo regional para operador/técnico, quando usado;
-- leituras históricas criadas com `simulate_readings` ou por ingestão autenticada;
-- ao menos um alerta/ocorrência/ordem ou solicitação para validar telas operacionais.
-
-Será avaliado criar um comando `seed_demo` idempotente. Ele só será implementado se os dados demonstrativos e as credenciais forem aprovados, pois cria registros persistentes no banco local.
+- administrador inicial (`admin@hidroscan.local`);
+- operador, técnico e morador pré-cadastrados;
+- região, imóvel e dispositivos vinculados;
+- leituras simuladas com consumo regular e cenário demonstrativo de alerta.
 
 ### 7.6 — Critérios de aceite da etapa 7
 
@@ -624,16 +608,16 @@ Itens a executar:
 5. Atualizar este documento com o resultado das etapas 6 a 8 e com desvios aprovados.
 6. Preparar lista de limitações conhecidas para apresentação: SQLite, polling em vez de WebSocket, ausência de comunicados persistidos e ausência de integração com hardware físico.
 
-### Pendências que não devem ser ocultadas no encerramento
+### Limitações conhecidas e decisões do escopo do MVP
 
-- O estado de válvula é lógico; não existe confirmação de hardware real.
-- A única regra de anomalia atual é pico de consumo; demais tipos de alerta requerem dados e parâmetros aprovados.
-- Comunicados do morador não possuem domínio persistido.
-- Recuperação de senha, reenvio de código de técnico e autoedição de perfil não possuem fluxos aprovados.
-- O dashboard será baseado em polling, não WebSocket.
-- SQLite é apropriado ao MVP, mas deve ser reavaliado para alta concorrência de escrita ou múltiplas instâncias.
-- Relatórios grandes ainda são síncronos e podem exigir fila assíncrona no futuro.
-- Interface administrativa para cadastrar dados demonstrativos ainda depende de decisão entre Django Admin e `seed_demo`.
+- O estado de válvula é puramente lógico, atualizado imediatamente no banco e auditado; não há confirmação de hardware físico.
+- Relatórios em PDF e CSV foram descontinuados do escopo do MVP, priorizando a visualização dos dados simulados em tela.
+- Não haverá recuperação de senha no MVP (sem código conflitante no backend); trocas emergenciais podem ser realizadas no Django Admin. O reenvio de código de técnico para administradores já está implementado e validado.
+- A única regra de anomalia atual é pico de consumo instantâneo; demais cenários de sensores são fictícios e simulados.
+- Comunicados do morador não possuem domínio persistido na API.
+- Carga de dados demonstrativos estruturada via comando `seed_demo`.
+- Modo de operação local definido em dois servidores com proxy no Vite (`npm run dev` na 5173 e Django na 8000).
+- Desenvolvimento do frontend segue sob responsabilidade de outro integrante da equipe, sem interferências deste agente.
 
 ### Evidências de homologação a registrar
 
