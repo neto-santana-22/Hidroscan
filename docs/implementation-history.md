@@ -275,6 +275,12 @@ Tipos suportados: `consumo`, `leituras`, `alertas` e `ocorrencias`. Filtros opci
 - `POST` bloqueia o dispositivo na transação, cria `ValveCommand`, muda o estado persistido e registra `valve.commanded`.
 - A implementação representa o estado aceito pelo software. Ainda não existe protocolo de confirmação com hardware físico; portanto, “aplicado” significa que o comando foi gravado e o estado lógico foi atualizado, não que uma válvula remota confirmou a execução.
 
+### Ajustes e validações da etapa 5
+
+- **Tratamento de dispositivo inativo no comando de válvula**: no endpoint `POST /api/dispositivos/{id}/valvula/` e no serviço `command_valve`, foi adicionado bloqueio com exceção controlada `InactiveDeviceError` ao tentar enviar comando para dispositivos inativos (`active=False`), retornando resposta amigável `400 Bad Request` em vez de erro interno não tratado (`Device.DoesNotExist` / 500).
+- **Registro no Django Admin com auditoria**: criado `control/admin.py` registrando o modelo `ValveCommand` no Django Admin (`ValveCommandAdmin`), com listagem, busca, filtros e auditoria explícita em transação atômica (`valve_command.created`, `valve_command.updated`, `valve_command.deleted`), mantendo a consistência arquitetural com os demais módulos do sistema.
+- **Cobertura de Testes**: suíte do app `control` expandida de 2 para 10 testes automatizados, cobrindo todos os perfis autorizados (operador, técnico e administrador), isolamento por escopo regional (404), restrição para moradores (403), bloqueio para não autenticados (401/403), validação de payload (motivo obrigatório e ação válida), bloqueio de dispositivo inativo (400) e auditoria de ações no Django Admin. A suíte global do projeto alcançou 85 testes automatizados 100% aprovados com `pytest`.
+
 ### Decisões consolidadas e pendências da etapa 5
 
 - **Controle de válvula com resposta lógica imediata**: Aprovada a Sugestão 1. Como a aplicação é um MVP local com sensores fictícios e sem atuadores IoT reais, o acionamento de válvula é considerado concluído com a atualização lógica imediata no banco de dados (`Device.valve_state`) e seu registro de auditoria (`valve.commanded`). Nenhuma alteração no frontend será realizada por este agente.

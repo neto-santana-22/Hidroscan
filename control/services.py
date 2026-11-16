@@ -6,10 +6,17 @@ from hidroscan.services import register_audit
 from .models import ValveCommand
 
 
+class InactiveDeviceError(ValueError):
+    pass
+
+
 def command_valve(*, device, actor, action, reason):
     """Persiste o comando, atualiza o estado conhecido e audita a mesma transação."""
     with transaction.atomic():
-        locked_device = Device.objects.select_for_update().get(pk=device.pk, active=True)
+        try:
+            locked_device = Device.objects.select_for_update().get(pk=device.pk, active=True)
+        except Device.DoesNotExist:
+            raise InactiveDeviceError("Dispositivos inativos não podem receber comandos de válvula.")
         new_state = Device.ValveState.OPEN if action == ValveCommand.Action.OPEN else Device.ValveState.CLOSED
         command = ValveCommand.objects.create(device=locked_device, requested_by=actor, action=action, reason=reason)
         locked_device.valve_state = new_state

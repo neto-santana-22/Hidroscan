@@ -10,7 +10,7 @@ from hidroscan.models import Device
 from hidroscan.permissions import IsOperationsUser
 
 from .serializers import ValveCommandCreateSerializer, ValveCommandSerializer
-from .services import command_valve
+from .services import InactiveDeviceError, command_valve
 
 
 def _visible_device_or_404(request, device_id):
@@ -28,5 +28,8 @@ def valve(request, device_id):
         return Response({"detail": IsOperationsUser.message}, status=status.HTTP_403_FORBIDDEN)
     serializer = ValveCommandCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    command = command_valve(device=device, actor=request.user, **serializer.validated_data)
+    try:
+        command = command_valve(device=device, actor=request.user, **serializer.validated_data)
+    except InactiveDeviceError as error:
+        return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
     return Response({"command": ValveCommandSerializer(command).data, "state": command.device.valve_state}, status=status.HTTP_201_CREATED)
