@@ -99,3 +99,80 @@ class ScopeAndDeviceApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("valve_state", response.data)
+
+
+class DeviceAdminFormTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            email="admin_device_test@example.com",
+            password="admin-password-123",
+        )
+        self.region = Region.objects.create(name="Região Admin", code="reg-admin")
+        self.prop = Property.objects.create(
+            name="Imóvel Admin", address="Rua Admin 100", region=self.region, owner=self.admin
+        )
+
+    def test_device_admin_form_and_admin_save(self):
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+        from .admin import DeviceAdmin
+        from .forms import DeviceAdminForm
+        from .models import AuditLog
+
+        site = AdminSite()
+        da = DeviceAdmin(Device, site)
+        rf = RequestFactory()
+        req = rf.post("/admin/hidroscan/device/add/")
+        req.user = self.admin
+
+        form = DeviceAdminForm(
+            data={
+                "property": self.prop.pk,
+                "name": "Hidrômetro Admin Form",
+                "serial_number": "HIDRO-ADM-FORM-01",
+                "active": True,
+                "device_key": "chave-secreta-456",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        device = form.save(commit=False)
+        da.save_model(req, device, form, change=False)
+
+        device.refresh_from_db()
+        self.assertTrue(device.check_device_key("chave-secreta-456"))
+        self.assertTrue(
+            AuditLog.objects.filter(action="device.created", resource_id=str(device.pk)).exists()
+        )
+
+
+class SeedDemoCommandTests(TestCase):
+    def test_seed_demo_creates_all_entities_idempotently(self):
+        from django.core.management import call_command
+        from io import StringIO
+        from monitoring.models import Reading
+
+        out = StringIO()
+        call_command("seed_demo", stdout=out)
+        self.assertIn("seed_demo", out.getvalue())
+
+        # Verifica existência dos 4 usuários
+        self.assertTrue(User.objects.filter(email="admin@hidroscan.local", role=User.Role.ADMINISTRADOR).exists())
+        self.assertTrue(User.objects.filter(email="operador@hidroscan.local", role=User.Role.OPERADOR).exists())
+        self.assertTrue(User.objects.filter(email="tecnico@hidroscan.local", role=User.Role.TECNICO).exists())
+        self.assertTrue(User.objects.filter(email="morador@hidroscan.local", role=User.Role.MORADOR).exists())
+
+        # Verifica região, imóvel e dispositivo
+        region = Region.objects.get(code="central")
+        prop = Property.objects.get(name="Condomínio das Águas", region=region)
+        device = Device.objects.get(serial_number="HIDRO-001", property=prop)
+        self.assertTrue(device.check_device_key("chave-demo-123"))
+
+        # Verifica leituras geradas
+        readings_count = Reading.objects.filter(device=device).count()
+        self.assertEqual(readings_count, 12)
+
+        # Idempotência: rodar novamente não duplica nem lança erro
+        out2 = StringIO()
+        call_command("seed_demo", stdout=out2)
+        self.assertEqual(Reading.objects.filter(device=device).count(), 12)
+        self.assertEqual(User.objects.filter(email="admin@hidroscan.local").count(), 1)

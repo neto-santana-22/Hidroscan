@@ -1,9 +1,11 @@
 from django import forms
 from django.contrib import admin
+from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 from django.db import transaction
 
+from hidroscan.forms import DeviceAdminForm  # noqa: F401
 from hidroscan.services import register_audit
 
 from .models import EmailVerification, User
@@ -131,6 +133,15 @@ class UserAdmin(BaseUserAdmin):
             for obj in queryset:
                 register_audit(actor=request.user, action="user.deleted", resource=obj)
             super().delete_queryset(request, queryset)
+
+    def user_change_password(self, request, id, form_url=""):
+        user = self.get_object(request, unquote(id))
+        response = super().user_change_password(request, id, form_url=form_url)
+        if request.method == "POST" and response.status_code == 302 and user:
+            user.refresh_from_db()
+            with transaction.atomic():
+                register_audit(actor=request.user, action="user.password_changed", resource=user)
+        return response
 
 
 @admin.register(EmailVerification)

@@ -46,6 +46,7 @@ def login_view(request):
     except AccountValidationError as error:
         return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
     login(request, user)
+    register_audit(actor=user, action="auth.login", resource=user)
     return Response(UserSerializer(user).data)
 
 
@@ -53,6 +54,8 @@ def login_view(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
+    user = request.user
+    register_audit(actor=user, action="auth.logout", resource=user)
     logout(request)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -124,3 +127,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         user = serializer.save()
         register_audit(actor=self.request.user, action="user.updated", resource=user)
+
+    def perform_destroy(self, instance):
+        register_audit(actor=self.request.user, action="user.deleted", resource=instance)
+        instance.delete()

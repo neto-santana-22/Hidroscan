@@ -23,6 +23,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if options["count"] < 1 or options["interval_minutes"] < 1 or options["increment"] < 0:
             raise CommandError("count e interval-minutes devem ser positivos; increment não pode ser negativo.")
+        total_minutes = options["interval_minutes"] * (options["count"] - 1)
+        if total_minutes > 48 * 60:
+            raise CommandError("A janela de simulação não pode exceder 48 horas.")
         device = Device.objects.filter(serial_number=options["serial_number"], active=True).first()
         if not device:
             raise CommandError("Dispositivo ativo não encontrado.")

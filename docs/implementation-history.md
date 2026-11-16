@@ -132,22 +132,24 @@ Recursos fora do escopo retornam `404`, não confirmação de existência.
 - **Throttling e proteção contra spoofing**: adicionado `VerificationRateThrottle` limitando em 10 requisições por minuto por IP no endpoint público de conferência de código e configurado `NUM_PROXIES` em `REST_FRAMEWORK` (padrão 0 em desenvolvimento para uso direto de `REMOTE_ADDR`), impedindo contorno de throttle por forjamento de cabeçalho `X-Forwarded-For`.
 - **Normalização e tratamento de e-mail**: padronizado o salvamento de e-mails em caixa baixa tanto em `clean()` e `save()` no model `User`, quanto em `LoginSerializer`, `UserCreateSerializer`, `UserSerializer` e `authenticate_user`. Criada migração de dados `accounts.0002_normalize_existing_emails` com detecção proativa e bloqueio com mensagem detalhada em caso de colisões prévias. A validação de e-mail na API rejeita duplicidades case-insensitive com `400 Bad Request` antes do banco, prevenindo `IntegrityError` (500).
 - **Unificação de constantes de verificação**: `VERIFICATION_TTL` centralizado em `accounts.models` e reutilizado em `services.py` (`send_verification_code` e `resend_verification_code`) e `verification_expiry`.
+- **Auditoria explícita em login e logout**: os endpoints `login_view` e `logout_view` em `accounts.views` registram explicitamente as ações `auth.login` e `auth.logout` via `register_audit`. A interceptação genérica por signals em `hidroscan.signals` foi desativada para manter a decisão arquitetural de auditoria explícita em endpoints sem redundância.
+- **Auditoria na exclusão de usuário via API**: adicionado `perform_destroy` em `UserViewSet` (`accounts.views`) registrando `user.deleted` na auditoria com o administrador autenticado como ator antes de efetivar a remoção.
 - **Formulários e operações no Django Admin**:
   - `UserAdmin` agora conta com `UserCreationForm` e `UserChangeForm` dedicados, adaptados ao modelo sem `username` e com campos `password_confirm`, `role` e `todas_regioes`. O formulário de edição inclui link funcional `<a href="../password/">` para alteração de senha.
   - Novos usuários criados no Admin recebem `email_verificado=True` automaticamente, com exceção de técnicos, que recebem código de verificação disparado no cadastro.
-  - `DeviceAdmin` possui `DeviceAdminForm` com campo seguro para inserção/redefinição de chave (`device_key`), gerando o hash correto no salvamento.
+  - `DeviceAdmin` utiliza `DeviceAdminForm`, formalmente estruturado em `hidroscan/forms.py` (pertencente ao domínio de `hidroscan` e reexportado em `accounts/admin.py` para total compatibilidade retroativa), com campo seguro para inserção/redefinição de chave (`device_key`), gerando o hash correto no salvamento.
   - Sobrescrito `delete_queryset` em todos os `ModelAdmin`s para garantir auditoria em exclusões em massa, e operações de salvamento/exclusão envolvidas em `transaction.atomic()` para evitar registros órfãos de auditoria caso ocorra falha de banco.
 - **Configuração de Proxy e Throttle**: `.env.example` atualizado documentando `NUM_PROXIES` para ambientes atrás de proxy reverso e direto.
-- **Cobertura de Testes**: suíte de `accounts` expandida para 25 testes (cobrindo formulários de criação/edição do Admin, detecção de colisão na migração, fieldsets, validações de senha, bloqueio de throttle mesmo com falsificação de `X-Forwarded-For` e duplicidades case-insensitive na API), totalizando 43 testes automatizados 100% aprovados em todo o projeto.
+- **Cobertura de Testes**: suíte de `accounts` expandida para 32 testes (cobrindo formulários de criação/edição do Admin, detecção de colisão na migração, fieldsets, validações de senha, bloqueio de throttle mesmo com falsificação de `X-Forwarded-For`, duplicidades case-insensitive na API, auditoria explícita de login/logout e exclusão auditada de usuário via API) e `hidroscan` com 6 testes (cobrindo escopo regional, isolamento de morador, chave confidencial e `DeviceAdminForm`).
 - **Link "Esqueceu a senha?"**: removido do formulário de login no frontend React para não induzir fluxo inexistente antes de sua especificação.
-- **Registro no Django Admin com auditoria**: criados registros de models em `accounts/admin.py` e `hidroscan/admin.py` com auditoria em `save_model`, `delete_model` e `delete_queryset`.
+- **Registro no Django Admin com auditoria**: criados registros de models em `accounts/admin.py` e `hidroscan/admin.py` com auditoria em `save_model`, `delete_model`, `delete_queryset` e `user_change_password`.
 
 ### Decisões consolidadas e pendências da etapa 2
 
-- **Recuperação de senha**: Não haverá recuperação de senha no MVP. Não existe código conflitante ou em aberto no backend (nenhuma view, rota ou serializer de redefinição). O link visual no frontend já foi removido. Caso haja necessidade de troca de senha no ambiente local/demonstração, o administrador pode realizá-la diretamente pelo Django Admin.
-- **Acoplamento entre apps**: Definido manter o acoplamento atual entre `accounts` e `hidroscan` (com `accounts.views` utilizando `register_audit` de `hidroscan`). Em uma aplicação monolítica executada localmente, essa dependência não gera impacto operacional nem import circular em runtime.
-- **Auditoria por shell**: Mantida a limitação conhecida de que comandos diretos via `manage.py shell` não geram logs de auditoria de aplicação.
-- **Tentativas de verificação**: Esgotamento por terceiros permanece como decisão de desenho mitigada pelo throttle de IP e desbloqueio/reenvio exclusivo por administrador autenticado.
+- **Recuperação de senha**: Não haverá recuperação de senha no MVP. Não existe código conflitante ou em aberto no backend (rotas inexistentes retornam 404, validado por teste). O link visual no frontend já foi removido. A troca de senha de usuários é realizada diretamente pelo administrador no Django Admin via formulário padrão (`user_change_password`), agora com auditoria explícita (`user.password_changed`) e validação de login com a nova credencial comprovada por teste automatizado.
+- **Acoplamento entre apps**: Definido manter o acoplamento atual entre `accounts` e `hidroscan` (com `accounts.views` e `accounts.admin` utilizando `register_audit` de `hidroscan`). Em uma aplicação monolítica executada localmente, essa dependência não gera impacto operacional nem import circular em runtime, conforme comprovado por verificação do sistema (`check`) e testes integrados.
+- **Auditoria por shell**: Mantida a limitação conhecida de que comandos diretos via `manage.py shell` não geram logs de auditoria de aplicação. Teste automatizado confirma que operações diretas de ORM em `User` não disparam auditorias implícitas espúrias.
+- **Tentativas de verificação**: Esgotamento por terceiros permanece como decisão de desenho mitigada pelo throttle de IP e desbloqueio/reenvio exclusivo por administrador autenticado. O ciclo de vida completo (ataque por força bruta -> esgotamento -> bloqueio por IP throttle -> intervenção e reenvio por administrador -> validação bem-sucedida pelo técnico -> autenticação com sucesso) foi validado de ponta a ponta por teste automatizado.
 
 ## Etapa 3 — monitoramento
 
@@ -189,10 +191,14 @@ O comando `simulate_readings` cria leituras crescentes pelo mesmo serviço da AP
 
 O cálculo de consumo parte de zero para a primeira leitura do dispositivo. Cada leitura posterior guarda a diferença já calculada, permitindo consultas e relatórios sem recalcular toda a série em cada requisição.
 
+### Ajustes e resolução das pendências da etapa 3
+
+- **Limitação de volume e janela de simulação**: o comando `simulate_readings` valida programaticamente e bloqueia parâmetros que excedam o horizonte temporal de 48 horas de leituras históricas (`interval_minutes * (count - 1) > 2880`), prevenindo sobrecarga de simulação e preservando a leveza do SQLite local. Testado com casos válidos e de rejeição por limite.
+- **Carga de dados de demonstração (`seed_demo`)**: implementado comando idempotente `python manage.py seed_demo` em `hidroscan/management/commands/seed_demo.py`. Ele inicializa a base local com os 4 perfis de usuários (`admin@hidroscan.local`, `operador@hidroscan.local`, `tecnico@hidroscan.local` e `morador@hidroscan.local`), cria a Região Central com acessos vinculados, o imóvel de exemplo "Condomínio das Águas", o hidrômetro "HIDRO-001" com chave hasheada (`chave-demo-123`) e gera uma série de 12 leituras horárias crescentes via `registrar_leitura`.
+- **Cobertura de Testes**: suíte de `monitoring` expandida para 7 testes (incluindo validações do comando `simulate_readings` e bloqueio de janela > 48h) e comando `seed_demo` validado em `hidroscan/tests.py`, totalizando 54 testes automatizados 100% aprovados em todo o projeto.
+
 ### Decisões consolidadas e pendências da etapa 3
 
-- **Carga de dados de demonstração**: Aprovada a criação do comando `python manage.py seed_demo` (Sugestão 2) para inicializar a base local com dados fictícios prontos para apresentação (usuários de cada papel, imóveis, dispositivos e leituras simuladas).
-- **Limitação de volume e janela de simulação**: Aprovado limitar a janela do simulador `simulate_readings` (Sugestão 1) a um horizonte máximo de 48 horas de leituras históricas, preservando a leveza e a performance do SQLite local no MVP.
 - **Falhas de telemetria**: Cenários de perda de bateria ou sinal permanecem fora do escopo do model `Device` no MVP, uma vez que todos os dados de sensores são simulados e fictícios.
 
 ## Etapa 4 — operação

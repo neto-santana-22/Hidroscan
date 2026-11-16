@@ -129,3 +129,42 @@ class ReadingApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Decimal(response.data["consumption"]), Decimal("1.500"))
+
+
+class SimulateReadingsCommandTests(TestCase):
+    def setUp(self):
+        owner = User.objects.create_user(email="owner_sim@example.com", password="senha-segura-123")
+        region = Region.objects.create(name="Região Sim", code="reg-sim")
+        prop = Property.objects.create(name="Casa Sim", address="Rua Sim 10", region=region, owner=owner)
+        self.device = Device.objects.create(property=prop, name="Hidrômetro Sim", serial_number="HIDRO-SIM-01")
+
+    def test_simulate_readings_success_within_48h(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command(
+            "simulate_readings",
+            self.device.serial_number,
+            count=10,
+            start_volume=Decimal("50.000"),
+            increment=Decimal("0.200"),
+            interval_minutes=60,
+            stdout=out,
+        )
+        self.assertEqual(Reading.objects.filter(device=self.device).count(), 10)
+        self.assertIn("10 leituras criadas", out.getvalue())
+
+    def test_simulate_readings_rejects_window_exceeding_48h(self):
+        from django.core.management import CommandError, call_command
+
+        with self.assertRaises(CommandError) as ctx:
+            call_command(
+                "simulate_readings",
+                self.device.serial_number,
+                count=50,
+                start_volume=Decimal("50.000"),
+                increment=Decimal("0.200"),
+                interval_minutes=60,
+            )
+        self.assertIn("48 horas", str(ctx.exception))

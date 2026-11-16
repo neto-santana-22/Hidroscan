@@ -567,3 +567,242 @@ class AdminIntegrationTests(TestCase):
 
         self.assertIn("colisao@example.com", str(ctx.exception))
         self.assertIn("Migração abortada", str(ctx.exception))
+
+
+class Etapa2DecisoesConsolidadasTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.admin = User.objects.create_superuser(
+            email="admin_etapa2@example.com",
+            password="admin-password-123",
+        )
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def test_password_reset_endpoints_do_not_exist(self):
+        """Decisão: Recuperação de senha não existe no MVP."""
+        endpoints = [
+            "/api/auth/recuperar-senha/",
+            "/api/auth/reset-password/",
+            "/api/auth/password-reset/",
+            "/api/auth/esqueci-senha/",
+        ]
+        for endpoint in endpoints:
+            response = self.client.post(endpoint, {"email": "qualquer@example.com"}, format="json")
+            self.assertEqual(response.status_code, 404)
+
+    def test_admin_can_change_user_password_and_action_is_audited(self):
+        """Decisão: Troca de senha é feita pelo administrador no Django Admin com auditoria."""
+        from django.test import Client as DjangoClient
+
+        user = User.objects.create_user(
+            email="morador_senha@example.com",
+            password="senha-antiga-123",
+            role=User.Role.MORADOR,
+        )
+
+        django_client = DjangoClient()
+        django_client.force_login(self.admin)
+
+        # Alterando senha via AdminPasswordChangeForm em /admin/accounts/user/<id>/password/
+        url = f"/admin/accounts/user/{user.pk}/password/"
+        response = django_client.post(
+            url,
+            {
+                "password1": "NovaSenhaSegura-456!",
+                "password2": "NovaSenhaSegura-456!",
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        # Verifica registro de auditoria
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="user.password_changed",
+                actor=self.admin,
+                resource_id=str(user.pk),
+            ).exists()
+        )
+
+        # Confirma que a nova senha funciona para autenticar na API
+        api_client = APIClient()
+        login_response = api_client.post(
+            "/api/auth/login/",
+            {"email": user.email, "password": "NovaSenhaSegura-456!"},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, 200)
+
+        # E que a senha antiga é recusada
+        old_login = api_client.post(
+            "/api/auth/login/",
+            {"email": user.email, "password": "senha-antiga-123"},
+            format="json",
+        )
+        self.assertEqual(old_login.status_code, 400)
+
+    def test_orm_direct_operations_do_not_generate_unintended_audit_logs(self):
+        """Decisão: Operações diretas de shell/ORM não geram auditoria implícita."""
+        initial_audit_count = AuditLog.objects.count()
+
+        user = User.objects.create_user(
+            email="shell_user@example.com",
+            password="senha-segura-123",
+            role=User.Role.MORADOR,
+        )
+        user.first_name = "AlteradoViaShell"
+        user.save()
+
+        # Nenhuma auditoria implícita deve ter sido criada pelas operações de ORM direto
+        self.assertEqual(AuditLog.objects.count(), initial_audit_count)
+
+    def test_apps_coupling_and_system_integrity(self):
+        """Decisão: Acoplamento accounts <-> hidroscan é mantido e sem imports circulares."""
+        from django.core.management import call_command
+        from hidroscan.services import register_audit
+
+        # Chama check do sistema
+        call_command("check")
+
+        # Verifica chamada a register_audit a partir de accounts
+        user = User.objects.create_user(
+            email="coupling_test@example.com",
+            password="senha-segura-123",
+            role=User.Role.MORADOR,
+        )
+        audit = register_audit(actor=self.admin, action="test.coupling", resource=user)
+        self.assertIsNotNone(audit.pk)
+        self.assertEqual(audit.action, "test.coupling")
+
+    def test_verification_exhaustion_throttle_and_admin_resend_lifecycle(self):
+        """Decisão: Esgotamento por terceiros mitigado por throttle e reenvio por admin."""
+        technician = User.objects.create_user(
+            email="tecnico_ciclo@example.com",
+            password="senha-segura-123",
+            role=User.Role.TECNICO,
+            email_verificado=False,
+        )
+        EmailVerification.objects.create(
+            user=technician,
+            code_hash=make_password("654321"),
+        )
+
+        client = APIClient(enforce_csrf_checks=True)
+        client.get("/api/auth/csrf/")
+        token = client.cookies["csrftoken"].value
+
+        # 1. Terceiro erra 5 vezes
+        for _ in range(5):
+            res = client.post(
+                "/api/auth/verificacao-email/",
+                {"email": technician.email, "code": "000000"},
+                format="json",
+                HTTP_X_CSRFTOKEN=token,
+            )
+            self.assertEqual(res.status_code, 400)
+
+        # 2. Código correto agora é rejeitado porque esgotou as 5 tentativas
+        res_blocked = client.post(
+            "/api/auth/verificacao-email/",
+            {"email": technician.email, "code": "654321"},
+            format="json",
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(res_blocked.status_code, 400)
+
+        # 3. Terceiro continua atacando e é bloqueado por throttle de IP
+        statuses = []
+        for _ in range(10):
+            res_throttle = client.post(
+                "/api/auth/verificacao-email/",
+                {"email": technician.email, "code": "000000"},
+                format="json",
+                HTTP_X_CSRFTOKEN=token,
+            )
+            statuses.append(res_throttle.status_code)
+        self.assertIn(429, statuses)
+
+        # 4. Administrador autenticado reenvia novo código (simulando cooldown de 60s decorrido)
+        verification = EmailVerification.objects.get(user=technician)
+        from accounts.models import VERIFICATION_TTL
+        verification.expires_at = timezone.now() + VERIFICATION_TTL - timezone.timedelta(seconds=65)
+        verification.save(update_fields=["expires_at"])
+
+        admin_client = APIClient()
+        admin_client.force_authenticate(self.admin)
+        res_resend = admin_client.post(
+            "/api/auth/reenvio-verificacao/",
+            {"email": technician.email},
+            format="json",
+        )
+        self.assertEqual(res_resend.status_code, 204)
+
+        # 5. Nova verificação está com tentativas zeradas
+        verification = EmailVerification.objects.get(user=technician)
+        self.assertEqual(verification.attempts, 0)
+        self.assertIsNone(verification.used_at)
+
+        # 6. Técnico envia novo código correto a partir de outro cliente/IP
+        tech_client = APIClient(enforce_csrf_checks=True)
+        tech_client.get("/api/auth/csrf/")
+        tech_token = tech_client.cookies["csrftoken"].value
+
+        # Definimos um código conhecido na verificação para validar o envio
+        verification.code_hash = make_password("987654")
+        verification.save(update_fields=["code_hash"])
+
+        res_verify = tech_client.post(
+            "/api/auth/verificacao-email/",
+            {"email": technician.email, "code": "987654"},
+            format="json",
+            HTTP_X_CSRFTOKEN=tech_token,
+            REMOTE_ADDR="198.51.100.99",
+        )
+        self.assertEqual(res_verify.status_code, 200)
+        technician.refresh_from_db()
+        self.assertTrue(technician.email_verificado)
+
+        # 7. Técnico agora autentica com sucesso
+        res_login = tech_client.post(
+            "/api/auth/login/",
+            {"email": technician.email, "password": "senha-segura-123"},
+            format="json",
+            HTTP_X_CSRFTOKEN=tech_token,
+        )
+        self.assertEqual(res_login.status_code, 200)
+
+    def test_logout_creates_audit_record_explicitly(self):
+        user = User.objects.create_user(
+            email="user_logout_test@example.com",
+            password="senha-segura-123",
+            role=User.Role.MORADOR,
+        )
+        self.client.force_authenticate(user=user)
+        response = self.client.post("/api/auth/logout/")
+        self.assertEqual(response.status_code, 204)
+        self.assertTrue(AuditLog.objects.filter(action="auth.logout", actor=user).exists())
+
+    def test_admin_delete_user_via_api_registers_audit(self):
+        admin = User.objects.create_user(
+            email="admin_del_api@example.com",
+            password="senha-segura-123",
+            role=User.Role.ADMINISTRADOR,
+        )
+        target = User.objects.create_user(
+            email="target_del_api@example.com",
+            password="senha-segura-123",
+            role=User.Role.MORADOR,
+        )
+        self.client.force_authenticate(admin)
+        response = self.client.delete(f"/api/usuarios/{target.pk}/")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(User.objects.filter(pk=target.pk).exists())
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="user.deleted", resource_id=str(target.pk), actor=admin
+            ).exists()
+        )
