@@ -231,6 +231,11 @@ Técnicos, operadores e administradores atuam somente no escopo regional. Técni
 
 Toda transição validada cria auditoria. A atualização de ocorrência também registra uma linha em `OccurrenceUpdate`, preservando o histórico textual e o status aplicado.
 
+### Ajustes e validações da etapa 4
+
+- **Correção nas fixtures de testes de Alertas e Ocorrências**: corrigida a instanciação de `Property` nos testes de API (`alerts/tests.py` e `occurrences/tests.py`), fornecendo o vínculo obrigatório de `owner` (morador) em conformidade com a restrição `NOT NULL` de integridade do banco SQLite e a modelagem de domínio.
+- **Cobertura de Testes**: suíte da Etapa 4 (`alerts`, `occurrences`, `workorders` e `resident_requests`) com 28 testes automatizados aprovados com `pytest`, e suíte global do projeto com 77 testes 100% aprovados.
+
 ### Decisões consolidadas e pendências da etapa 4
 
 - **Escopo e responsabilidade do Frontend**: O desenvolvimento e as telas do frontend são de responsabilidade exclusiva de outro integrante da equipe. O backend manterá estritamente as regras de negócio, endpoints e validações sem realizar alterações no código de interface.

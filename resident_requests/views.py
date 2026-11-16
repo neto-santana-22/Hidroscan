@@ -48,6 +48,9 @@ class ResidentRequestViewSet(viewsets.ModelViewSet):
 
     partial_update = update
 
+    def destroy(self, request, *args, **kwargs):
+        return Response({"detail": "Exclusão de solicitações não é permitida."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
     @action(detail=True, methods=["post"], url_path="status")
     def set_status(self, request, pk=None):
         resident_request = self.get_object()

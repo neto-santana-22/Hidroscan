@@ -40,4 +40,8 @@ def add_update(*, occurrence, actor, message, status):
             occurrence=occurrence, author=actor, message=message, status=status
         )
         register_audit(actor=actor, action="occurrence.updated", resource=occurrence, details={"status": status})
+        if status == Occurrence.Status.RESOLVED and occurrence.alert and occurrence.alert.status != "resolved":
+            occurrence.alert.status = "resolved"
+            occurrence.alert.save(update_fields=["status"])
+            register_audit(actor=actor, action="alert.resolved", resource=occurrence.alert, details={"occurrence_id": occurrence.id})
     return update

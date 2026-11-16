@@ -33,6 +33,14 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         work_order = create_work_order(actor=request.user, **serializer.validated_data)
         return Response(self.get_serializer(work_order).data, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        return Response({"detail": "Use a ação de status para alterar uma ordem de serviço."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    partial_update = update
+
+    def destroy(self, request, *args, **kwargs):
+        return Response({"detail": "Exclusão de ordens de serviço não é permitida."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
     @action(detail=True, methods=["post"], url_path="status")
     def set_status(self, request, pk=None):
         work_order = self.get_object()

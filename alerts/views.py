@@ -34,3 +34,12 @@ class AlertViewSet(viewsets.ReadOnlyModelViewSet):
             alert.save(update_fields=["status", "acknowledged_at", "acknowledged_by"])
             register_audit(actor=request.user, action="alert.acknowledged", resource=alert)
         return Response(self.get_serializer(alert).data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsOperationsUser])
+    def resolver(self, request, pk=None):
+        alert = self.get_object()
+        if alert.status != Alert.Status.RESOLVED:
+            alert.status = Alert.Status.RESOLVED
+            alert.save(update_fields=["status"])
+            register_audit(actor=request.user, action="alert.resolved", resource=alert)
+        return Response(self.get_serializer(alert).data)

@@ -29,6 +29,14 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(occurrence).data, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        return Response({"detail": "Use o endpoint de atualizações para alterar uma ocorrência."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    partial_update = update
+
+    def destroy(self, request, *args, **kwargs):
+        return Response({"detail": "Exclusão de ocorrências não é permitida."}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
     @action(detail=True, methods=["get", "post"], url_path="atualizacoes")
     def updates(self, request, pk=None):
         occurrence = self.get_object()
