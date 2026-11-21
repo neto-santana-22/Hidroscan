@@ -1,47 +1,59 @@
+import { useEffect, useMemo, useState } from 'react'
 
-import { useMemo, useState } from 'react'
-import { technicalInterventions } from '../data/TechnicianData'
+import { listWorkOrders } from '../api/operations'
+import {
+    formatDateTime,
+    priorityLabel,
+    workOrderStatusLabel,
+    type WorkOrder,
+} from '../api/types'
 
 import './TechnicianHistoryPage.css'
 
-type InterventionFilter =
-    | 'Todas'
-    | 'Inspeção'
-    | 'Manutenção preventiva'
-    | 'Manutenção corretiva'
+// Só mostra ordens já encerradas: 'completed' ou 'canceled'.
+type HistoryFilter = 'Todas' | 'completed' | 'canceled'
+
+function errorMessage(err: unknown) {
+    return err instanceof Error ? err.message : 'Erro inesperado.'
+}
 
 function TechnicianHistoryPage() {
-    const [filter, setFilter] = useState<InterventionFilter>('Todas')
+    const [orders, setOrders] = useState<WorkOrder[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [loadError, setLoadError] = useState('')
+    const [filter, setFilter] = useState<HistoryFilter>('Todas')
     const [search, setSearch] = useState('')
 
-    const filteredInterventions = useMemo(() => {
+    // Carrega as ordens do técnico quando a tela abre.
+    useEffect(() => {
+        listWorkOrders()
+            .then((data) => setOrders(data.results))
+            .catch((err) => setLoadError(errorMessage(err)))
+            .finally(() => setIsLoading(false))
+    }, [])
+
+    // Histórico é só o que já foi encerrado; o restante fica em "Minhas ordens".
+    const closedOrders = useMemo(
+        () => orders.filter((order) => order.status === 'completed' || order.status === 'canceled'),
+        [orders],
+    )
+
+    // Aplica o filtro de situação e a busca por texto sobre as ordens encerradas.
+    const filteredOrders = useMemo(() => {
         const term = search.trim().toLowerCase()
 
-        return technicalInterventions.filter((item) => {
-            const matchesType = filter === 'Todas' || item.type === filter
-
-            const matchesSearch = [
-                item.id,
-                item.title,
-                item.equipment,
-                item.location,
-            ].some((value) => value.toLowerCase().includes(term))
-
-            return matchesType && matchesSearch
+        return closedOrders.filter((order) => {
+            const matchesStatus = filter === 'Todas' || order.status === filter
+            const matchesSearch = [order.title, order.description].some((value) =>
+                value.toLowerCase().includes(term),
+            )
+            return matchesStatus && matchesSearch
         })
-    }, [filter, search])
+    }, [closedOrders, filter, search])
 
-    const preventive = technicalInterventions.filter(
-        (item) => item.type === 'Manutenção preventiva',
-    ).length
-
-    const corrective = technicalInterventions.filter(
-        (item) => item.type === 'Manutenção corretiva',
-    ).length
-
-    const inspections = technicalInterventions.filter(
-        (item) => item.type === 'Inspeção',
-    ).length
+    // Números dos cards de resumo.
+    const completedCount = closedOrders.filter((order) => order.status === 'completed').length
+    const canceledCount = closedOrders.filter((order) => order.status === 'canceled').length
 
     return (
         <section className="technician-history">
@@ -49,27 +61,22 @@ function TechnicianHistoryPage() {
                 <div>
                     <span className="technician-eyebrow">ÁREA TÉCNICA</span>
                     <h1>Histórico técnico</h1>
-                    <p>Consulte as intervenções e manutenções realizadas.</p>
+                    <p>Consulte as ordens de serviço já encerradas.</p>
                 </div>
-                <span className="technician-data-label">Dados simulados</span>
             </header>
 
             <div className="technician-history-summary">
                 <article>
-                    <span>Total de intervenções</span>
-                    <strong>{technicalInterventions.length}</strong>
+                    <span>Total encerradas</span>
+                    <strong>{closedOrders.length}</strong>
                 </article>
                 <article>
-                    <span>Preventivas</span>
-                    <strong>{preventive}</strong>
+                    <span>Concluídas</span>
+                    <strong>{completedCount}</strong>
                 </article>
                 <article>
-                    <span>Corretivas</span>
-                    <strong>{corrective}</strong>
-                </article>
-                <article>
-                    <span>Inspeções</span>
-                    <strong>{inspections}</strong>
+                    <span>Canceladas</span>
+                    <strong>{canceledCount}</strong>
                 </article>
             </div>
 
@@ -78,62 +85,60 @@ function TechnicianHistoryPage() {
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Buscar por ordem, equipamento ou local..."
+                    placeholder="Buscar por título ou descrição..."
                     aria-label="Buscar no histórico técnico"
                 />
 
                 <select
                     value={filter}
-                    onChange={(event) =>
-                        setFilter(event.target.value as InterventionFilter)
-                    }
-                    aria-label="Filtrar tipo de intervenção"
+                    onChange={(event) => setFilter(event.target.value as HistoryFilter)}
+                    aria-label="Filtrar por situação"
                 >
-                    <option value="Todas">Todos os tipos</option>
-                    <option value="Inspeção">Inspeções</option>
-                    <option value="Manutenção preventiva">Preventivas</option>
-                    <option value="Manutenção corretiva">Corretivas</option>
+                    <option value="Todas">Todas</option>
+                    <option value="completed">{workOrderStatusLabel.completed}</option>
+                    <option value="canceled">{workOrderStatusLabel.canceled}</option>
                 </select>
             </div>
 
             <div className="technician-history-list">
-                {filteredInterventions.length === 0 ? (
-                    <div className="technician-empty">
-                        Nenhuma intervenção encontrada.
-                    </div>
+                {isLoading ? (
+                    <div className="technician-empty">Carregando histórico...</div>
+                ) : loadError ? (
+                    <div className="technician-empty" role="alert">{loadError}</div>
+                ) : filteredOrders.length === 0 ? (
+                    <div className="technician-empty">Nenhuma ordem encerrada encontrada.</div>
                 ) : (
-                    filteredInterventions.map((item) => (
-                        <article className="technician-history-card" key={item.id}>
+                    filteredOrders.map((order) => (
+                        <article className="technician-history-card" key={order.id}>
                             <div className="technician-history-card__header">
                                 <div>
-                                    <span className="technician-order-id">{item.id}</span>
-                                    <h2>{item.title}</h2>
+                                    <span className="technician-order-id">OS-{order.id}</span>
+                                    <h2>{order.title}</h2>
                                 </div>
-                                <span className="technician-history-type">{item.type}</span>
+                                <span className="technician-history-type">
+                                    {workOrderStatusLabel[order.status]}
+                                </span>
                             </div>
+
+                            <p>{order.description}</p>
 
                             <div className="technician-history-details">
                                 <div>
-                                    <span>Equipamento</span>
-                                    <strong>{item.equipment}</strong>
+                                    <span>Ocorrência</span>
+                                    <strong>#{order.occurrence}</strong>
                                 </div>
                                 <div>
-                                    <span>Localização</span>
-                                    <strong>{item.location}</strong>
+                                    <span>Prioridade</span>
+                                    <strong>{priorityLabel[order.priority]}</strong>
                                 </div>
                                 <div>
-                                    <span>Responsável</span>
-                                    <strong>{item.technician}</strong>
+                                    <span>Aberta em</span>
+                                    <strong>{formatDateTime(order.created_at)}</strong>
                                 </div>
                                 <div>
-                                    <span>Data</span>
-                                    <strong>{item.date}</strong>
+                                    <span>Última atualização</span>
+                                    <strong>{formatDateTime(order.updated_at)}</strong>
                                 </div>
-                            </div>
-
-                            <div className="technician-history-result">
-                                <span>Resultado da intervenção</span>
-                                <p>{item.result}</p>
                             </div>
                         </article>
                     ))

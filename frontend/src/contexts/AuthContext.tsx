@@ -1,70 +1,78 @@
-
 import {
     createContext,
     useContext,
+    useEffect,
     useState,
     type ReactNode,
 } from 'react'
 
+import { apiFetch, ensureCsrf } from '../api/client'
 import type {
     AuthContextData,
     LoginCredentials,
     User,
-    UserRole,
 } from '../types/auth'
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined)
-
-const demoUsers: Record<UserRole, User> = {
-    morador: {
-        id: '1',
-        name: 'Maria Silva',
-        email: 'morador@hidroscan.com',
-        role: 'morador',
-    },
-    operador: {
-        id: '2',
-        name: 'Carlos Santos',
-        email: 'operador@hidroscan.com',
-        role: 'operador',
-    },
-    tecnico: {
-        id: '3',
-        name: 'João Oliveira',
-        email: 'tecnico@hidroscan.com',
-        role: 'tecnico',
-    },
-    administrador: {
-        id: '4',
-        name: 'Ana Costa',
-        email: 'admin@hidroscan.com',
-        role: 'administrador',
-    },
-}
 
 interface AuthProviderProps {
     children: ReactNode
 }
 
+// Formato do usuário que a API devolve em /api/auth/me/ e /api/auth/login/.
+interface ApiUser {
+    id: number
+    email: string
+    name: string
+    role: string
+}
+
+// Converte o usuário da API para o formato do frontend.
+// Retorna null para perfis que não usam este aplicativo (operador e administrador).
+function toUser(data: ApiUser): User | null {
+    if (data.role !== 'morador' && data.role !== 'tecnico') return null
+    return { id: data.id, email: data.email, name: data.name, role: data.role }
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
     const [user, setUser] = useState<User | null>(null)
+    // Começa como true para não mostrar a tela de login antes de descobrir se já existe sessão.
+    const [isLoading, setIsLoading] = useState(true)
 
+    // Ao abrir a página, pergunta à API se existe uma sessão ativa.
+    useEffect(() => {
+        apiFetch<ApiUser>('/api/auth/me/')
+            .then((data) => setUser(toUser(data)))
+            .catch(() => setUser(null))
+            .finally(() => setIsLoading(false))
+    }, [])
+
+    // Faz login: pega o token CSRF, envia e-mail e senha, e guarda o usuário.
     async function login(credentials: LoginCredentials) {
-        const email = credentials.email.trim().toLowerCase()
+        await ensureCsrf()
 
-        const matchedUser = Object.values(demoUsers).find(
-            (demoUser) => demoUser.email === email,
-        )
+        const data = await apiFetch<ApiUser>('/api/auth/login/', {
+            method: 'POST',
+            body: {
+                email: credentials.email.trim().toLowerCase(),
+                password: credentials.password,
+            },
+        })
 
-        if (!matchedUser || !credentials.password.trim()) {
-            throw new Error('E-mail ou senha inválidos.')
+        const loggedUser = toUser(data)
+        if (!loggedUser) {
+            throw new Error('Este perfil não tem acesso ao aplicativo.')
         }
-
-        setUser(matchedUser)
+        setUser(loggedUser)
     }
 
-    function logout() {
-        setUser(null)
+    // Encerra a sessão no backend e limpa o usuário, mesmo se a chamada falhar.
+    async function logout() {
+        try {
+            await apiFetch('/api/auth/logout/', { method: 'POST' })
+        } finally {
+            setUser(null)
+        }
     }
 
     return (
@@ -72,7 +80,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             value={{
                 user,
                 isAuthenticated: user !== null,
-                isLoading: false,
+                isLoading,
                 login,
                 logout,
             }}
@@ -82,6 +90,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     )
 }
 
+// Hook para os componentes lerem o usuário e as funções de login e logout.
 export function useAuth() {
     const context = useContext(AuthContext)
 

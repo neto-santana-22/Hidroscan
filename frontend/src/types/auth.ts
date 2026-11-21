@@ -1,12 +1,7 @@
-
-export type UserRole =
-    | 'morador'
-    | 'operador'
-    | 'tecnico'
-    | 'administrador'
+export type UserRole = 'morador' | 'tecnico'
 
 export interface User {
-    id: string
+    id: number
     name: string
     email: string
     role: UserRole
@@ -22,5 +17,5 @@ export interface AuthContextData {
     isAuthenticated: boolean
     isLoading: boolean
     login: (credentials: LoginCredentials) => Promise<void>
-    logout: () => void
+    logout: () => Promise<void>
 }

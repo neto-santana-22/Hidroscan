@@ -1,27 +1,37 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 
+import { apiFetch } from '../api/client'
+import { type Paginated, type Property } from '../api/types'
 import { useAuth } from '../contexts/AuthContext'
-import { residentSummary } from '../data/ResidentData'
 
 import './ResidentAccountPage.css'
 
+function errorMessage(err: unknown) {
+    return err instanceof Error ? err.message : 'Erro inesperado.'
+}
+
 function ResidentAccountPage() {
+    // Nome e e-mail vêm de /api/auth/me/, guardados no AuthContext.
     const { user } = useAuth()
 
-    const [name, setName] = useState(user?.name ?? '')
-    const [email, setEmail] = useState(user?.email ?? '')
-    const [phone, setPhone] = useState('(00) 00000-0000')
-    const [address, setAddress] = useState('Endereço demonstrativo')
-    const [feedback, setFeedback] = useState('')
+    // Imóveis do morador, vindos de /api/imoveis/ (a API já filtra pelo dono).
+    const [properties, setProperties] = useState<Property[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [loadError, setLoadError] = useState('')
+
+    useEffect(() => {
+        apiFetch<Paginated<Property>>('/api/imoveis/')
+            .then((data) => setProperties(data.results))
+            .catch((err) => setLoadError(errorMessage(err)))
+            .finally(() => setIsLoading(false))
+    }, [])
 
     if (!user) {
         return null
     }
 
-    function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault()
-        setFeedback('Alterações registradas apenas nesta demonstração.')
-    }
+    const name = user.name
+    const email = user.email
 
     return (
         <div className="resident-account">
@@ -31,10 +41,8 @@ function ResidentAccountPage() {
                         ÁREA DO MORADOR / MINHA CONTA
                     </span>
                     <h1>Minha conta</h1>
-                    <p>Consulte e atualize seus dados cadastrais.</p>
+                    <p>Consulte seus dados cadastrais e os imóveis vinculados.</p>
                 </div>
-
-                <span className="resident-account__demo">Dados simulados</span>
             </header>
 
             <section className="resident-account__profile">
@@ -52,84 +60,53 @@ function ResidentAccountPage() {
             <section className="resident-account__panel">
                 <div className="resident-account__panel-heading">
                     <h2>Dados pessoais</h2>
-                    <p>Informações cadastrais da sua conta.</p>
+                    <p>Estes dados são gerenciados pelo administrador do sistema.</p>
                 </div>
 
-                <form className="resident-account__form" onSubmit={handleSubmit}>
-                    <div className="resident-account__fields">
-                        <div className="resident-account__field">
-                            <label htmlFor="account-name">Nome completo</label>
-                            <input
-                                id="account-name"
-                                value={name}
-                                onChange={(event) => setName(event.target.value)}
-                                required
-                            />
-                        </div>
-
-                        <div className="resident-account__field">
-                            <label htmlFor="account-email">E-mail</label>
-                            <input
-                                id="account-email"
-                                type="email"
-                                value={email}
-                                onChange={(event) => setEmail(event.target.value)}
-                                required
-                            />
-                        </div>
-
-                        <div className="resident-account__field">
-                            <label htmlFor="account-phone">Telefone</label>
-                            <input
-                                id="account-phone"
-                                value={phone}
-                                onChange={(event) => setPhone(event.target.value)}
-                                placeholder="(00) 00000-0000"
-                            />
-                        </div>
-
-                        <div className="resident-account__field">
-                            <label htmlFor="account-address">Endereço</label>
-                            <input
-                                id="account-address"
-                                value={address}
-                                onChange={(event) => setAddress(event.target.value)}
-                            />
-                        </div>
+                <div className="resident-account__fields">
+                    <div className="resident-account__field">
+                        <label htmlFor="account-name">Nome completo</label>
+                        <input id="account-name" value={name} readOnly />
                     </div>
 
-                    {feedback && (
-                        <p className="resident-account__feedback" role="status">
-                            {feedback}
-                        </p>
-                    )}
-
-                    <button type="submit">Salvar alterações</button>
-                </form>
+                    <div className="resident-account__field">
+                        <label htmlFor="account-email">E-mail</label>
+                        <input id="account-email" type="email" value={email} readOnly />
+                    </div>
+                </div>
             </section>
 
             <section className="resident-account__panel">
                 <div className="resident-account__panel-heading">
                     <h2>Unidade consumidora</h2>
-                    <p>Dados vinculados ao seu cadastro de abastecimento.</p>
+                    <p>Imóveis vinculados ao seu cadastro.</p>
                 </div>
 
-                <div className="resident-account__unit">
-                    <div>
-                        <span>Identificação da unidade</span>
-                        <strong>{residentSummary.unit}</strong>
-                    </div>
+                {isLoading ? (
+                    <p>Carregando imóveis...</p>
+                ) : loadError ? (
+                    <p role="alert">{loadError}</p>
+                ) : properties.length === 0 ? (
+                    <p>Nenhum imóvel vinculado à sua conta.</p>
+                ) : (
+                    properties.map((property) => (
+                        <div className="resident-account__unit" key={property.id}>
+                            <div>
+                                <span>Identificação da unidade</span>
+                                <strong>{property.name}</strong>
+                            </div>
 
-                    <div>
-                        <span>Responsável</span>
-                        <strong>{name || user.name}</strong>
-                    </div>
-                </div>
+                            <div>
+                                <span>Endereço</span>
+                                <strong>{property.address}</strong>
+                            </div>
+                        </div>
+                    ))
+                )}
             </section>
 
             <p className="resident-account__disclaimer">
-                A edição é demonstrativa. A atualização real dos dados será realizada
-                pela API do sistema.
+                Para alterar seus dados, procure a administração do sistema.
             </p>
         </div>
     )

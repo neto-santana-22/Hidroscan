@@ -1,11 +1,10 @@
-
 import { useState, type FormEvent } from 'react'
 import './App.css'
 import MainLayout from './layouts/MainLayout'
 import { useAuth } from './contexts/AuthContext'
 
 function App() {
-  const { isAuthenticated, login } = useAuth()
+  const { isAuthenticated, isLoading, login } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,6 +27,11 @@ function App() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Enquanto o frontend verifica se já existe uma sessão, não mostra nada.
+  if (isLoading) {
+    return <main className="login-page" aria-busy="true" />
   }
 
   if (isAuthenticated) {

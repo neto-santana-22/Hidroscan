@@ -1,8 +1,8 @@
-
 import './NavigationMenu.css'
 import { useAuth } from '../contexts/AuthContext'
 import type { UserRole } from '../types/auth'
 
+// Todas as telas que o menu pode abrir. Cada nome aparece como título de um item.
 export type PageName =
     | 'Visão geral'
     | 'Meu consumo'
@@ -10,21 +10,11 @@ export type PageName =
     | 'Comunicados'
     | 'Minhas solicitações'
     | 'Minha conta'
-    | 'Monitoramento'
-    | 'Mapa da rede'
-    | 'Equipamentos'
-    | 'Alertas'
-    | 'Ocorrências'
-    | 'Ordens de serviço'
-    | 'Relatórios'
     | 'Minhas ordens'
     | 'Histórico técnico'
     | 'Alertas técnicos'
     | 'Meu perfil'
-    | 'Gestão de usuários'
-    | 'Permissões'
-    | 'Auditoria'
-    | 'Configurações'
+    | 'Equipamentos'
 
 interface NavigationMenuProps {
     isOpen: boolean
@@ -37,6 +27,7 @@ interface NavigationItem {
     description: string
 }
 
+// Itens do menu para cada perfil. Operador e administrador não existem mais no frontend.
 const navigationByRole: Record<UserRole, NavigationItem[]> = {
     morador: [
         {
@@ -65,37 +56,6 @@ const navigationByRole: Record<UserRole, NavigationItem[]> = {
         },
     ],
 
-    operador: [
-        {
-            label: 'Monitoramento',
-            description: 'Indicadores e dados em tempo real',
-        },
-        {
-            label: 'Mapa da rede',
-            description: 'Visualização da rede de distribuição',
-        },
-        {
-            label: 'Equipamentos',
-            description: 'Sensores e dispositivos instalados',
-        },
-        {
-            label: 'Alertas',
-            description: 'Eventos que exigem atenção',
-        },
-        {
-            label: 'Ocorrências',
-            description: 'Registro de problemas identificados',
-        },
-        {
-            label: 'Ordens de serviço',
-            description: 'Acompanhamento de intervenções',
-        },
-        {
-            label: 'Relatórios',
-            description: 'Dados e indicadores operacionais',
-        },
-    ],
-
     tecnico: [
         {
             label: 'Minhas ordens',
@@ -118,37 +78,6 @@ const navigationByRole: Record<UserRole, NavigationItem[]> = {
             description: 'Seus dados profissionais',
         },
     ],
-
-    administrador: [
-        {
-            label: 'Monitoramento',
-            description: 'Visão geral da operação',
-        },
-        {
-            label: 'Gestão de usuários',
-            description: 'Gerencie usuários e cadastros',
-        },
-        {
-            label: 'Equipamentos',
-            description: 'Gerencie sensores e dispositivos',
-        },
-        {
-            label: 'Permissões',
-            description: 'Controle de acesso por perfil',
-        },
-        {
-            label: 'Relatórios',
-            description: 'Indicadores e relatórios do sistema',
-        },
-        {
-            label: 'Auditoria',
-            description: 'Histórico de ações e alterações',
-        },
-        {
-            label: 'Configurações',
-            description: 'Configurações gerais da plataforma',
-        },
-    ],
 }
 
 function NavigationMenu({
@@ -158,6 +87,7 @@ function NavigationMenu({
 }: NavigationMenuProps) {
     const { user } = useAuth()
 
+    // Fecha o menu quando está fechado ou quando não há usuário logado.
     if (!isOpen || !user) return null
 
     const navigationItems = navigationByRole[user.role]
@@ -174,8 +104,8 @@ function NavigationMenu({
                         key={item.label}
                         type="button"
                         className={`navigation-menu__item ${activePage === item.label
-                                ? 'navigation-menu__item--active'
-                                : ''
+                            ? 'navigation-menu__item--active'
+                            : ''
                             }`}
                         onClick={() => onNavigate(item.label)}
                         aria-current={activePage === item.label ? 'page' : undefined}
